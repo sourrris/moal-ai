@@ -1,0 +1,180 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: risk-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-risk_monitor}
+      POSTGRES_USER: ${POSTGRES_USER:-risk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-risk}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-risk} -d ${POSTGRES_DB:-risk_monitor}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: risk-rabbitmq
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: risk-redis
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ml-inference:
+    build:
+      context: ./backend
+      dockerfile: services/ml_inference/Dockerfile
+    container_name: risk-ml-inference
+    environment:
+      SERVICE_NAME: ml-inference
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MODEL_DIR: /models
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+      ML_INFERENCE_URL: http://ml-inference:8000
+    volumes:
+      - model_data:/models
+    ports:
+      - '8001:8000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  api-gateway:
+    build:
+      context: ./backend
+      dockerfile: services/api_gateway/Dockerfile
+    container_name: risk-api-gateway
+    environment:
+      SERVICE_NAME: api-gateway
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+      ML_INFERENCE_URL: http://ml-inference:8000
+    ports:
+      - '8000:8000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-inference:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  event-worker:
+    build:
+      context: ./backend
+      dockerfile: services/event_worker/Dockerfile
+    container_name: risk-event-worker
+    environment:
+      SERVICE_NAME: event-worker
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_PORT: 8010
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+      ML_INFERENCE_URL: http://ml-inference:8000
+      MAX_EVENT_RETRIES: 3
+    ports:
+      - '8010:8010'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-inference:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8010/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: services/notification_service/Dockerfile
+    container_name: risk-notification-service
+    environment:
+      SERVICE_NAME: notification-service
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_PORT: 8020
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+    ports:
+      - '8020:8020'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8020/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: frontend/dashboard/Dockerfile
+    container_name: risk-dashboard
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+      VITE_WS_BASE_URL: http://localhost:8020
+    ports:
+      - '5173:5173'
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  model_data:

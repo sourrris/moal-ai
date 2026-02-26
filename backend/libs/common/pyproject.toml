@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risk-common"
+version = "0.1.0"
+description = "Shared utilities for the Real-Time AI Risk Monitoring System"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.6,<3.0",
+  "pydantic-settings>=2.2,<3.0",
+  "python-json-logger>=2.0,<3.0",
+  "aio-pika>=9.4,<10.0",
+  "python-jose[cryptography]>=3.3,<4.0"
+]
+
+[tool.setuptools]
+packages = ["risk_common"]
