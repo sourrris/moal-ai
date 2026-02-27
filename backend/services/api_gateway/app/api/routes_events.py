@@ -1,6 +1,7 @@
 from uuid import UUID
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_subject, get_rabbit_channel
@@ -52,14 +53,34 @@ async def get_event_status(
     _: str = Depends(get_current_subject),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    event = await EventRepository.fetch_by_id(session, event_id)
+    event = await EventRepository.fetch_event_detail(session, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    return {
-        "event_id": str(event.event_id),
-        "tenant_id": event.tenant_id,
-        "event_type": event.event_type,
-        "status": event.status,
-        "ingested_at": event.ingested_at,
-    }
+    return event
+
+
+@router.get("")
+async def list_events(
+    tenant_id: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    source: str | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    from_ts: datetime | None = Query(default=None, alias="from"),
+    to_ts: datetime | None = Query(default=None, alias="to"),
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=25, ge=1, le=200),
+    _: str = Depends(get_current_subject),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    return await EventRepository.list_events(
+        session,
+        tenant_id=tenant_id,
+        status=status,
+        source=source,
+        event_type=event_type,
+        from_ts=from_ts,
+        to_ts=to_ts,
+        cursor=cursor,
+        limit=limit,
+    )

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Generic, TypeVar
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
@@ -56,6 +56,15 @@ class AlertMessage(BaseModel):
     anomaly_score: float
     threshold: float
     created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+
+
+T = TypeVar("T")
+
+
+class WebSocketEnvelope(BaseModel, Generic[T]):
+    type: str
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    data: T
 
 
 class HealthResponse(BaseModel):

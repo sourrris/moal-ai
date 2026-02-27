@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.infrastructure.db import SessionLocal
 from app.infrastructure.repository import mark_failed, persist_inference
 from risk_common.messaging import publish_json
-from risk_common.schemas import AlertMessage, EventEnvelope, InferenceRequest, InferenceResponse
+from risk_common.schemas import AlertMessage, EventEnvelope, InferenceRequest, InferenceResponse, WebSocketEnvelope
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -57,11 +57,12 @@ class EventProcessor:
                     anomaly_score=inference.anomaly_score,
                     threshold=inference.threshold,
                 )
+                envelope = WebSocketEnvelope[AlertMessage](type="ALERT_CREATED", data=alert)
                 await publish_json(
                     channel=self.rabbit_channel,
                     exchange_name=settings.rabbitmq_alerts_exchange,
                     routing_key=settings.rabbitmq_alerts_routing_key,
-                    payload=alert.model_dump(mode="json"),
+                    payload=envelope.model_dump(mode="json"),
                 )
 
             await self.redis.set(processed_key, "1", ex=settings.dedupe_ttl_seconds)
