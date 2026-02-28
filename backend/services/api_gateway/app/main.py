@@ -3,7 +3,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import routes_alerts, routes_auth, routes_events, routes_models, routes_overview
+from app.api import (
+    routes_alerts,
+    routes_auth,
+    routes_auth_v2,
+    routes_events,
+    routes_models,
+    routes_overview,
+    routes_v2_alerts,
+    routes_v2_data_sources,
+    routes_v2_events,
+    routes_v2_models,
+    routes_v2_risk_decisions,
+)
 from app.config import get_settings
 from app.infrastructure.db import check_db_health
 from risk_common.logging import configure_logging
@@ -40,10 +52,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(routes_auth.router)
+app.include_router(routes_auth_v2.router)
 app.include_router(routes_overview.router)
 app.include_router(routes_alerts.router)
 app.include_router(routes_events.router)
 app.include_router(routes_models.router)
+app.include_router(routes_v2_events.router)
+app.include_router(routes_v2_alerts.router)
+app.include_router(routes_v2_risk_decisions.router)
+app.include_router(routes_v2_data_sources.router)
+app.include_router(routes_v2_models.router)
 
 
 @app.get("/health/live", response_model=HealthResponse, tags=["health"])

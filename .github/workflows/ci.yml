@@ -52,6 +52,9 @@ jobs:
           - backend/services/event_worker/Dockerfile
           - backend/services/ml_inference/Dockerfile
           - backend/services/notification_service/Dockerfile
+          - backend/services/data_connector/Dockerfile
+          - backend/services/metrics_aggregator/Dockerfile
+          - backend/services/feature_enrichment/Dockerfile
           - frontend/dashboard/Dockerfile
     steps:
       - uses: actions/checkout@v4

@@ -46,7 +46,9 @@ export function EventsPage() {
   const eventsQuery = useQuery({
     queryKey: ['events', filters],
     queryFn: async () => fetchEvents(token!, filters),
-    enabled: Boolean(token)
+    enabled: Boolean(token),
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true
   });
 
   const eventDetailQuery = useQuery({

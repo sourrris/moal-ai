@@ -47,15 +47,26 @@ fi
 
 echo "Setting up Python virtual environment..."
 "$PYTHON_BIN" -m venv "$ROOT_DIR/.venv"
+# Ensure pip is available (Homebrew Python venvs sometimes omit it)
+"$ROOT_DIR/.venv/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
 # shellcheck disable=SC1091
 source "$ROOT_DIR/.venv/bin/activate"
-pip install --upgrade pip >/dev/null
-pip install -e "$ROOT_DIR/backend/libs/common" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/api_gateway/requirements.txt" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/event_worker/requirements.txt" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/ml_inference/requirements.txt" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/notification_service/requirements.txt" >/dev/null
-pip install greenlet >/dev/null
+
+PIP="$ROOT_DIR/.venv/bin/pip"
+"$PIP" install --upgrade pip >/dev/null
+"$PIP" install -e "$ROOT_DIR/backend/libs/common" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/api_gateway/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/event_worker/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/ml_inference/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/notification_service/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/data_connector/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/metrics_aggregator/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/feature_enrichment/requirements.txt" >/dev/null
+"$PIP" install alembic >/dev/null
+"$PIP" install greenlet >/dev/null
+
+echo "Applying Alembic migrations..."
+(cd "$ROOT_DIR/backend" && DATABASE_URL="postgresql+asyncpg://risk:risk@localhost:5432/risk_monitor" "$ROOT_DIR/.venv/bin/alembic" -c alembic.ini upgrade head >/dev/null)
 
 echo "Installing frontend dependencies..."
 (cd "$ROOT_DIR/frontend/dashboard" && npm install >/dev/null)

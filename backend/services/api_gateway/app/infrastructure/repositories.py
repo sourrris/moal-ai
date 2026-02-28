@@ -13,6 +13,12 @@ pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 
 class UserRepository:
+    ROLE_DEFAULT_SCOPES: dict[str, list[str]] = {
+        "admin": ["events:write", "events:read", "alerts:write", "alerts:read", "models:read", "models:write", "connectors:read"],
+        "analyst": ["events:read", "alerts:read", "alerts:write", "models:read"],
+        "viewer": ["events:read", "alerts:read", "models:read"],
+    }
+
     @staticmethod
     def verify_password_and_upgrade_hash(password: str, stored_hash: str) -> tuple[bool, str | None]:
         """Validate password against stored credentials and return optional upgraded hash.
@@ -74,6 +80,47 @@ class UserRepository:
         await session.commit()
         await session.refresh(user)
         return user
+
+    @staticmethod
+    async def resolve_tenant_context(
+        session: AsyncSession,
+        user: User,
+        requested_tenant_id: str | None = None,
+    ) -> dict:
+        rows = await session.execute(
+            text(
+                """
+                SELECT utr.tenant_id, utr.role_name, COALESCE(r.scopes, ARRAY[]::text[]) AS scopes
+                FROM user_tenant_roles utr
+                LEFT JOIN roles r ON r.role_name = utr.role_name
+                WHERE utr.user_id = :user_id
+                  AND (:tenant_id IS NULL OR utr.tenant_id = :tenant_id)
+                ORDER BY utr.tenant_id ASC, utr.role_name ASC
+                """
+            ),
+            {"user_id": user.id, "tenant_id": requested_tenant_id},
+        )
+        mappings = [dict(item._mapping) for item in rows]
+        if mappings:
+            tenant_id = str(mappings[0]["tenant_id"])
+            role_set: set[str] = {str(item["role_name"]) for item in mappings if item.get("role_name")}
+            scope_set: set[str] = set()
+            for item in mappings:
+                for scope in item.get("scopes") or []:
+                    scope_set.add(str(scope))
+            return {
+                "tenant_id": tenant_id,
+                "roles": sorted(role_set),
+                "scopes": sorted(scope_set),
+            }
+
+        fallback_role = (user.role or "analyst").strip() or "analyst"
+        tenant_id = requested_tenant_id or "tenant-alpha"
+        return {
+            "tenant_id": tenant_id,
+            "roles": [fallback_role],
+            "scopes": UserRepository.ROLE_DEFAULT_SCOPES.get(fallback_role, UserRepository.ROLE_DEFAULT_SCOPES["viewer"]),
+        }
 
 class EventRepository:
     @staticmethod

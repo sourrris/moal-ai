@@ -27,7 +27,9 @@ export function OverviewPage() {
   const metricsQuery = useQuery({
     queryKey: ['overview-metrics', tenant, window],
     queryFn: async () => fetchOverviewMetrics(token!, tenant, window),
-    enabled: Boolean(token)
+    enabled: Boolean(token),
+    refetchInterval: live.connected && !live.stale ? false : 15_000,
+    refetchIntervalInBackground: true
   });
 
   const criticalAlertsQuery = useQuery({
@@ -38,7 +40,9 @@ export function OverviewPage() {
         severity: 'critical',
         limit: 10
       }),
-    enabled: Boolean(token)
+    enabled: Boolean(token),
+    refetchInterval: live.connected && !live.stale ? false : 15_000,
+    refetchIntervalInBackground: true
   });
 
   if (metricsQuery.isLoading) {
@@ -71,6 +75,10 @@ export function OverviewPage() {
         <MetricTile label="Alert rate" value={`${data.alert_rate.toFixed(2)} / hr`} />
         <MetricTile label="Ingestion throughput" value={`${data.ingestion_rate.toFixed(2)} / hr`} />
         <MetricTile label="Model health" value={`${data.model_health.toFixed(1)}%`} />
+        <MetricTile
+          label="Live risk score"
+          value={live.metrics[0] ? live.metrics[0].risk_score.toFixed(3) : 'n/a'}
+        />
       </div>
 
       <div className="grid-two">

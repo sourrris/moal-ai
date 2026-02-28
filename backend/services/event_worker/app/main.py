@@ -30,17 +30,26 @@ async def lifespan(app: FastAPI):
         arguments={"x-dead-letter-exchange": settings.rabbitmq_dlx_exchange},
     )
     consumer_tag = await events_queue.consume(processor.handle_message)
+    events_v2_queue = await rabbit_channel.declare_queue(
+        settings.rabbitmq_events_v2_queue,
+        durable=True,
+        arguments={"x-dead-letter-exchange": settings.rabbitmq_dlx_exchange},
+    )
+    consumer_tag_v2 = await events_v2_queue.consume(processor.handle_message_v2)
 
     app.state.rabbit_conn = rabbit_conn
     app.state.rabbit_channel = rabbit_channel
     app.state.redis_client = redis_client
     app.state.events_queue = events_queue
     app.state.consumer_tag = consumer_tag
+    app.state.events_v2_queue = events_v2_queue
+    app.state.consumer_tag_v2 = consumer_tag_v2
 
     try:
         yield
     finally:
         await app.state.events_queue.cancel(app.state.consumer_tag)
+        await app.state.events_v2_queue.cancel(app.state.consumer_tag_v2)
         await redis_client.aclose()
         await rabbit_channel.close()
         await rabbit_conn.close()

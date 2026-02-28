@@ -25,7 +25,10 @@ REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
 JWT_SECRET_KEY="${JWT_SECRET_KEY:-change-me-in-prod}"
 LOG_LEVEL="${LOG_LEVEL:-INFO}"
 ML_INFERENCE_URL="${ML_INFERENCE_URL:-http://localhost:8001}"
+FEATURE_ENRICHMENT_URL="${FEATURE_ENRICHMENT_URL:-http://localhost:8040}"
+DATA_CONNECTOR_URL="${DATA_CONNECTOR_URL:-http://localhost:8030}"
 CORS_ALLOW_ORIGINS="${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}"
+RABBITMQ_QUEUE_TYPE="${RABBITMQ_QUEUE_TYPE:-classic}"
 MODEL_DIR="${MODEL_DIR:-$ROOT_DIR/.local/models}"
 mkdir -p "$MODEL_DIR"
 
@@ -49,6 +52,9 @@ start_backend() {
       RABBITMQ_URL="$RABBITMQ_URL" \
       REDIS_URL="$REDIS_URL" \
       ML_INFERENCE_URL="$ML_INFERENCE_URL" \
+      FEATURE_ENRICHMENT_URL="$FEATURE_ENRICHMENT_URL" \
+      DATA_CONNECTOR_URL="$DATA_CONNECTOR_URL" \
+      RABBITMQ_QUEUE_TYPE="$RABBITMQ_QUEUE_TYPE" \
       CORS_ALLOW_ORIGINS="$CORS_ALLOW_ORIGINS" \
       "$@" \
       uvicorn app.main:app --host 0.0.0.0 --port "$port" >>"$log_file" 2>&1 &
@@ -90,6 +96,9 @@ wait_for_url() {
 
 echo "Starting backend services..."
 start_backend "ml-inference" "$ROOT_DIR/backend/services/ml_inference" "8001" "MODEL_DIR=$MODEL_DIR"
+start_backend "feature-enrichment" "$ROOT_DIR/backend/services/feature_enrichment" "8040"
+start_backend "data-connector" "$ROOT_DIR/backend/services/data_connector" "8030"
+start_backend "metrics-aggregator" "$ROOT_DIR/backend/services/metrics_aggregator" "8050"
 start_backend "api-gateway" "$ROOT_DIR/backend/services/api_gateway" "8000"
 start_backend "event-worker" "$ROOT_DIR/backend/services/event_worker" "8010" "MAX_EVENT_RETRIES=3"
 start_backend "notification-service" "$ROOT_DIR/backend/services/notification_service" "8020"
@@ -99,6 +108,9 @@ start_frontend
 
 echo "Waiting for service health checks..."
 wait_for_url "http://localhost:8001/health/live" "ML Inference"
+wait_for_url "http://localhost:8040/health/live" "Feature Enrichment"
+wait_for_url "http://localhost:8030/health/live" "Data Connector"
+wait_for_url "http://localhost:8050/health/live" "Metrics Aggregator"
 wait_for_url "http://localhost:8000/health/live" "API Gateway"
 wait_for_url "http://localhost:8010/health/live" "Event Worker"
 wait_for_url "http://localhost:8020/health/live" "Notification Service"
@@ -108,6 +120,9 @@ echo
 echo "Local dev stack is running."
 echo "Dashboard: http://localhost:5173"
 echo "API Docs:  http://localhost:8000/docs"
+echo "Connectors: http://localhost:8030/v1/connectors/status"
+echo "Enrichment: http://localhost:8040/health/live"
+echo "Metrics:    http://localhost:8050/health/live"
 echo "RabbitMQ:  http://localhost:15672"
 echo "Logs:      $LOG_DIR"
 echo "Stop:      ./scripts/local/stop.sh"

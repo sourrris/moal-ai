@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { alertListItemSchema, type AlertListItem } from '../../entities/alerts';
+import { liveMetricSchema, type LiveMetric } from '../../entities/metrics';
 import { normalizeLiveAlert, wsEnvelopeSchema } from '../../entities/websocket';
 import { WS_BASE_URL } from '../lib/constants';
 
 function toWsUrl(base: string, token: string) {
-  return `${base.replace(/^http/, 'ws')}/ws/alerts?token=${encodeURIComponent(token)}`;
+  return `${base.replace(/^http/, 'ws')}/ws/stream?channels=alerts,metrics&token=${encodeURIComponent(token)}`;
 }
 
 export function useLiveAlerts(token: string | null) {
   const [connected, setConnected] = useState(false);
   const [stale, setStale] = useState(false);
   const [alerts, setAlerts] = useState<AlertListItem[]>([]);
+  const [metrics, setMetrics] = useState<LiveMetric[]>([]);
 
   const retryRef = useRef<number | null>(null);
   const heartbeatRef = useRef<number | null>(null);
@@ -22,6 +24,7 @@ export function useLiveAlerts(token: string | null) {
       setConnected(false);
       setStale(false);
       setAlerts([]);
+      setMetrics([]);
       return;
     }
 
@@ -68,14 +71,31 @@ export function useLiveAlerts(token: string | null) {
         markFresh();
 
         try {
-          const parsed = wsEnvelopeSchema.safeParse(JSON.parse(event.data));
-          if (parsed.success && parsed.data.type === 'ALERT_CREATED') {
-            const normalized = normalizeLiveAlert(parsed.data.data);
-            setAlerts((prev) => [normalized, ...prev].slice(0, 100));
+          const raw = JSON.parse(event.data);
+          const parsed = wsEnvelopeSchema.safeParse(raw);
+          if (parsed.success) {
+            if (parsed.data.type === 'ALERT_CREATED' || parsed.data.type === 'ALERT_V2_CREATED') {
+              const normalized = normalizeLiveAlert(parsed.data.data);
+              setAlerts((prev) => [normalized, ...prev].slice(0, 100));
+              return;
+            }
+            if (parsed.data.type === 'METRIC_UPDATED') {
+              const metric = liveMetricSchema.safeParse(parsed.data.data);
+              if (metric.success) {
+                setMetrics((prev) => [metric.data, ...prev].slice(0, 100));
+              }
+              return;
+            }
             return;
           }
 
-          const fallback = alertListItemSchema.safeParse(JSON.parse(event.data));
+          const metricFallback = liveMetricSchema.safeParse(raw);
+          if (metricFallback.success) {
+            setMetrics((prev) => [metricFallback.data, ...prev].slice(0, 100));
+            return;
+          }
+
+          const fallback = alertListItemSchema.safeParse(raw);
           if (fallback.success) {
             setAlerts((prev) => [fallback.data, ...prev].slice(0, 100));
           }
@@ -110,8 +130,9 @@ export function useLiveAlerts(token: string | null) {
     () => ({
       connected,
       stale,
-      alerts
+      alerts,
+      metrics
     }),
-    [alerts, connected, stale]
+    [alerts, connected, metrics, stale]
   );
 }

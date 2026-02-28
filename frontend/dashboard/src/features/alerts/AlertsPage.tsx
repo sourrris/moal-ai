@@ -49,7 +49,9 @@ export function AlertsPage() {
   const alertsQuery = useQuery({
     queryKey: ['alerts', filters],
     queryFn: async () => fetchAlerts(token!, filters),
-    enabled: Boolean(token)
+    enabled: Boolean(token),
+    refetchInterval: live.connected && !live.stale ? false : 15_000,
+    refetchIntervalInBackground: true
   });
 
   const alertDetailQuery = useQuery({

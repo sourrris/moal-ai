@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 
 import type { AlertListItem } from '../../entities/alerts';
+import type { LiveMetric } from '../../entities/metrics';
 import { useLiveAlerts } from '../../shared/hooks/useLiveAlerts';
 import { useAuth } from './auth-context';
 
@@ -8,6 +9,7 @@ type LiveAlertsState = {
   connected: boolean;
   stale: boolean;
   alerts: AlertListItem[];
+  metrics: LiveMetric[];
 };
 
 const LiveAlertsContext = createContext<LiveAlertsState | null>(null);

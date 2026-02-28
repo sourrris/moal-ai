@@ -2,14 +2,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from redis.asyncio import Redis
+from risk_common.logging import configure_logging
+from risk_common.messaging import connect, setup_topology
+from risk_common.schemas import HealthResponse
 
 from app.api.routes import router as notification_router
 from app.application.bridge import NotificationBridge
 from app.config import get_settings
 from app.domain.connection_manager import ConnectionManager
-from risk_common.logging import configure_logging
-from risk_common.messaging import connect, setup_topology
-from risk_common.schemas import HealthResponse
 
 settings = get_settings()
 

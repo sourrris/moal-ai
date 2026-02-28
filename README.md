@@ -12,6 +12,9 @@ Production-grade distributed scaffold for real-time AI risk monitoring with Fast
 - Event Worker: Consumes events, calls ML inference, persists results, emits alerts
 - ML Inference: TensorFlow autoencoder train/infer + model version activation
 - Notification Service: Rabbit alert consumer + Redis Pub/Sub + WebSocket fan-out
+- Data Connector Service: Scheduled internet feed ingestion (OFAC/FATF/OpenSanctions/FX)
+- Feature Enrichment Service: Risk-context enrichment lookups from cached reference data
+- Metrics Aggregator Service: Continuous 1m/1h metrics rollups + live metrics stream
 - Dashboard: React live monitoring UI
 
 ## Local Development (No Docker)
@@ -33,9 +36,24 @@ Production-grade distributed scaffold for real-time AI risk monitoring with Fast
 ./scripts/local/stop.sh
 ```
 
+5. Optional operational helpers:
+
+```bash
+# Ensure events_v2 partitions for the next 14 days
+./scripts/local/maintain-partitions.sh
+
+# Replay dead-lettered events back to events exchange
+./scripts/local/replay-dlq.sh --limit 50
+```
+
 4. URLs:
    - Dashboard `http://localhost:5173`
    - API docs `http://localhost:8000/docs`
+   - Data connector status `http://localhost:8030/v1/connectors/status`
+   - Data connector runs `http://localhost:8030/v1/connectors/runs`
+   - Data connector errors `http://localhost:8030/v1/connectors/errors`
+   - Feature enrichment health `http://localhost:8040/health/live`
+   - Metrics aggregator health `http://localhost:8050/health/live`
    - Notification status `http://localhost:8020/v1/notifications/connections`
    - RabbitMQ UI `http://localhost:15672`
 
@@ -78,6 +96,9 @@ python -m pip install -r backend/services/api_gateway/requirements.txt
 python -m pip install -r backend/services/event_worker/requirements.txt
 python -m pip install -r backend/services/ml_inference/requirements.txt
 python -m pip install -r backend/services/notification_service/requirements.txt
+python -m pip install -r backend/services/data_connector/requirements.txt
+python -m pip install -r backend/services/feature_enrichment/requirements.txt
+python -m pip install -r backend/services/metrics_aggregator/requirements.txt
 npm ci --prefix frontend/dashboard
 ```
 
@@ -94,15 +115,36 @@ docker compose up -d --build
 ## Docs
 - Architecture and diagrams: `docs/architecture.md`
 - Folder structure: `docs/folder-structure.md`
+- V2 operationalization guide: `docs/v2-operationalization.md`
 
 ## Key Production Patterns Included
 - Event-driven microservices via RabbitMQ
 - Redis Pub/Sub-based real-time streaming
 - JWT authentication
+- JWT v2 tenant-aware claims + refresh token flow (`/v2/auth/token`, `/v2/auth/refresh`)
 - Idempotent ingestion and processing controls
 - Retry + dead-letter queue handling
 - Structured JSON logging
 - Health checks for orchestration
+
+## V2 Operational APIs
+- `POST /v2/events/ingest`
+- `POST /v2/events/ingest/batch`
+- `GET /v2/alerts`
+- `POST /v2/alerts/{alert_id}/ack`
+- `POST /v2/alerts/{alert_id}/resolve`
+- `GET /v2/risk-decisions/{event_id}`
+- `GET /v2/data-sources/status`
+- `GET /v2/data-sources/runs`
+
+Connector control endpoints:
+- `POST /v1/connectors/run-now?source_name=...`
+- `POST /v1/connectors/enable?source_name=...`
+- `POST /v1/connectors/disable?source_name=...`
+- `GET /v1/connectors/lookup/ip?ip=...`
+- `GET /v1/connectors/lookup/bin?card_bin=...`
+- `GET /v2/models/drift`
+- `GET /v2/models/training-runs`
 
 ## CI Baseline (PR1)
 - GitHub Actions workflow: `.github/workflows/ci.yml`
