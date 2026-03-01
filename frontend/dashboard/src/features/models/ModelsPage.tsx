@@ -292,6 +292,22 @@ export function ModelsPage() {
                 Version <strong>{metricsQuery.data.model_version}</strong> · anomaly hit rate{' '}
                 <strong>{(metricsQuery.data.anomaly_hit_rate * 100).toFixed(2)}%</strong>
               </p>
+              {metricsQuery.data.latest_training_summary && (
+                <p className="muted">
+                  Latest training run <strong>{metricsQuery.data.latest_training_summary.run_id?.slice(0, 8) ?? 'n/a'}</strong>{' '}
+                  · samples <strong>{metricsQuery.data.latest_training_summary.sample_count}</strong>{' '}
+                  {typeof metricsQuery.data.latest_training_summary.val_loss === 'number' && (
+                    <>
+                      · val loss <strong>{metricsQuery.data.latest_training_summary.val_loss.toFixed(6)}</strong>{' '}
+                    </>
+                  )}
+                  {metricsQuery.data.latest_training_summary.finished_at && (
+                    <>
+                      · finished <strong>{formatDateTime(metricsQuery.data.latest_training_summary.finished_at, 'local')}</strong>
+                    </>
+                  )}
+                </p>
+              )}
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={metricsSeries}>
                   <XAxis dataKey="time" hide />

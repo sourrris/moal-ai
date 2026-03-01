@@ -425,6 +425,33 @@ class ModelOpsRepository:
         return [dict(row._mapping) for row in rows]
 
     @staticmethod
+    async def get_latest_successful_training_run(
+        session: AsyncSession,
+        *,
+        model_name: str,
+        model_version: str,
+    ) -> dict | None:
+        row = await session.execute(
+            text(
+                """
+                SELECT run_id, model_name, model_version, status, started_at, finished_at, parameters, metrics, initiated_by
+                FROM model_training_runs
+                WHERE model_name = :model_name
+                  AND model_version = :model_version
+                  AND status = 'success'
+                ORDER BY finished_at DESC NULLS LAST, started_at DESC
+                LIMIT 1
+                """
+            ),
+            {
+                "model_name": model_name,
+                "model_version": model_version,
+            },
+        )
+        result = row.first()
+        return dict(result._mapping) if result else None
+
+    @staticmethod
     async def create_training_run(
         session: AsyncSession,
         *,

@@ -69,7 +69,7 @@ echo "Applying Alembic migrations..."
 (cd "$ROOT_DIR/backend" && DATABASE_URL="postgresql+asyncpg://risk:risk@localhost:5432/risk_monitor" "$ROOT_DIR/.venv/bin/alembic" -c alembic.ini upgrade head >/dev/null)
 
 echo "Installing frontend dependencies..."
-(cd "$ROOT_DIR/frontend/dashboard" && npm install >/dev/null)
+(cd "$ROOT_DIR/frontend/dashboard" && npm install)
 
 cat > "$ROOT_DIR/frontend/dashboard/.env.local" <<'EOF'
 VITE_API_BASE_URL=http://api.localhost

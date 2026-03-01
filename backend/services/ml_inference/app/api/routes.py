@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Request
 
 from app.application.service import InferenceService
+from app.infrastructure.model_store import ModelActivationError
 from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainingResult, ModelTrainRequest
 
 router = APIRouter(prefix="/v1", tags=["ml"])
@@ -39,8 +40,24 @@ async def activate_model(payload: ActivateModelRequest, request: Request) -> Mod
     service = get_service(request)
     try:
         return await service.activate(model_name=payload.model_name, model_version=payload.model_version)
+    except ModelActivationError as exc:
+        status_map = {
+            "not_registry_model": 404,
+            "artifact_missing": 409,
+            "invalid_metadata": 422,
+        }
+        raise HTTPException(
+            status_code=status_map.get(exc.code, 422),
+            detail=exc.to_payload(),
+        ) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_metadata",
+                "message": str(exc),
+            },
+        ) from exc
 
 
 @router.get("/models", response_model=list[ModelMetadata])

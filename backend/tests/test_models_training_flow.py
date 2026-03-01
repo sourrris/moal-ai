@@ -14,6 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "services" / "api_gateway"))
 
 from app.api import routes_models
+from app.application.services import ModelGatewayError
 from risk_common.schemas import ModelTrainRequest
 from risk_common.schemas_v2 import AuthClaims
 
@@ -102,6 +103,8 @@ async def test_train_model_records_success_run(monkeypatch: pytest.MonkeyPatch) 
     assert response.metrics["baseline_comparison"]["active_model_version"] == "20260228000000"
 
     assert captured["created"]["parameters"]["training_source"] == "historical_events"
+    assert captured["created"]["parameters"]["dataset_lineage"]["source_table"] == "risk_decisions"
+    assert captured["created"]["parameters"]["dataset_lineage"]["source_column"] == "feature_vector"
     assert captured["finalized"]["status"] == "success"
     assert captured["finalized"]["model_version"] == "20260301093000"
     assert captured["train_payload"]["training_source"] == "provided_features"
@@ -201,6 +204,7 @@ async def test_list_models_marks_db_only_rows_as_inference_only(monkeypatch: pyt
 @pytest.mark.asyncio
 async def test_activate_model_rejects_non_registry_models(monkeypatch: pytest.MonkeyPatch) -> None:
     claims = AuthClaims(sub="tester", tenant_id="tenant-alpha", scopes=["models:write"])
+    session = SimpleNamespace()
 
     async def fake_list_all_models():
         return [{"model_name": "risk_autoencoder", "model_version": "20260301000000"}]
@@ -211,10 +215,121 @@ async def test_activate_model_rejects_non_registry_models(monkeypatch: pytest.Mo
         await routes_models.activate_model(
             routes_models.ActivateModelRequest(model_name="risk_autoencoder", model_version="20260301099999"),
             claims,
+            session,
         )
 
     assert exc.value.status_code == 404
-    assert "inference-only" in str(exc.value.detail)
+    detail = exc.value.detail
+    assert isinstance(detail, dict)
+    assert detail["code"] == "not_registry_model"
+
+
+@pytest.mark.asyncio
+async def test_activate_model_rejects_candidate_without_minimum_samples(monkeypatch: pytest.MonkeyPatch) -> None:
+    claims = AuthClaims(sub="tester", tenant_id="tenant-alpha", scopes=["models:write"])
+    session = SimpleNamespace()
+
+    async def fake_list_all_models():
+        return [{"model_name": "risk_autoencoder", "model_version": "20260301000000", "threshold": 1.05}]
+
+    async def fake_get_run(session_arg, *, model_name, model_version):
+        if model_version == "20260301000000":
+            return {
+                "model_name": model_name,
+                "model_version": model_version,
+                "status": "success",
+                "parameters": {"dataset_summary": {"effective_sample_count": 40}},
+                "metrics": {"sample_count": 40, "val_loss": 0.18},
+            }
+        return {
+            "model_name": model_name,
+            "model_version": model_version,
+            "status": "success",
+            "parameters": {},
+            "metrics": {"sample_count": 120, "val_loss": 0.2},
+        }
+
+    async def fake_get_active_model():
+        return {
+            "model_name": "risk_autoencoder",
+            "model_version": "20260228000000",
+            "feature_dim": 8,
+            "threshold": 1.0,
+        }
+
+    monkeypatch.setattr(routes_models.ModelManagementService, "list_all_models", fake_list_all_models)
+    monkeypatch.setattr(routes_models.ModelManagementService, "get_active_model", fake_get_active_model)
+    monkeypatch.setattr(routes_models.ModelOpsRepository, "get_latest_successful_training_run", fake_get_run)
+
+    with pytest.raises(HTTPException) as exc:
+        await routes_models.activate_model(
+            routes_models.ActivateModelRequest(model_name="risk_autoencoder", model_version="20260301000000"),
+            claims,
+            session,
+        )
+
+    assert exc.value.status_code == 422
+    detail = exc.value.detail
+    assert isinstance(detail, dict)
+    assert detail["code"] == "invalid_metadata"
+    assert detail["minimum_samples"] == routes_models.ACTIVATION_MIN_SAMPLES
+
+
+@pytest.mark.asyncio
+async def test_activate_model_maps_ml_activation_error_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    claims = AuthClaims(sub="tester", tenant_id="tenant-alpha", scopes=["models:write"])
+    session = SimpleNamespace()
+
+    async def fake_list_all_models():
+        return [{"model_name": "risk_autoencoder", "model_version": "20260301000000", "threshold": 0.9}]
+
+    async def fake_get_active_model():
+        return {
+            "model_name": "risk_autoencoder",
+            "model_version": "20260228000000",
+            "feature_dim": 8,
+            "threshold": 1.0,
+        }
+
+    async def fake_get_run(session_arg, *, model_name, model_version):
+        if model_version == "20260301000000":
+            return {
+                "model_name": model_name,
+                "model_version": model_version,
+                "status": "success",
+                "parameters": {"dataset_summary": {"effective_sample_count": 160}},
+                "metrics": {"sample_count": 160, "val_loss": 0.11},
+            }
+        return {
+            "model_name": model_name,
+            "model_version": model_version,
+            "status": "success",
+            "parameters": {"dataset_summary": {"effective_sample_count": 160}},
+            "metrics": {"sample_count": 160, "val_loss": 0.2},
+        }
+
+    async def fake_activate_model(payload):
+        raise ModelGatewayError(
+            status_code=409,
+            detail={"code": "artifact_missing", "message": "Model artifact file does not exist"},
+        )
+
+    monkeypatch.setattr(routes_models.ModelManagementService, "list_all_models", fake_list_all_models)
+    monkeypatch.setattr(routes_models.ModelManagementService, "get_active_model", fake_get_active_model)
+    monkeypatch.setattr(routes_models.ModelOpsRepository, "get_latest_successful_training_run", fake_get_run)
+    monkeypatch.setattr(routes_models.ModelManagementService, "activate_model", fake_activate_model)
+
+    with pytest.raises(HTTPException) as exc:
+        await routes_models.activate_model(
+            routes_models.ActivateModelRequest(model_name="risk_autoencoder", model_version="20260301000000"),
+            claims,
+            session,
+        )
+
+    assert exc.value.status_code == 409
+    detail = exc.value.detail
+    assert isinstance(detail, dict)
+    assert detail["code"] == "artifact_missing"
 
 
 @pytest.mark.asyncio

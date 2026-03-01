@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,21 @@ import tensorflow as tf
 
 from app.domain.entities import LoadedModel
 from risk_common.schemas import InferenceResponse, ModelMetadata, ModelTrainingResult
+
+
+class ModelActivationError(ValueError):
+    def __init__(self, code: str, message: str, *, details: dict[str, Any] | None = None):
+        self.code = code
+        self.message = message
+        self.details = details or {}
+        super().__init__(message)
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            **self.details,
+        }
 
 
 class ModelStore:
@@ -109,16 +125,162 @@ class ModelStore:
     async def activate(self, model_name: str, model_version: str) -> ModelMetadata:
         key = f"{model_name}:{model_version}"
         if key not in self.registry["models"]:
-            raise ValueError("Requested model version does not exist")
+            raise ModelActivationError(
+                "not_registry_model",
+                "Requested model version does not exist in registry",
+                details={"model_name": model_name, "model_version": model_version},
+            )
+
+        model_info = self._validate_registry_entry_for_activation(
+            key=key,
+            model_name=model_name,
+            model_version=model_version,
+        )
 
         async with self._lock:
-            await self._load_active(key)
+            try:
+                await self._load_active(key)
+            except FileNotFoundError as exc:
+                raise ModelActivationError(
+                    "artifact_missing",
+                    "Model artifact is missing or unreadable",
+                    details={
+                        "model_name": model_name,
+                        "model_version": model_version,
+                        "artifact_path": str(model_info.get("path") or ""),
+                    },
+                ) from exc
+            except OSError as exc:
+                raise ModelActivationError(
+                    "artifact_missing",
+                    "Model artifact is missing or unreadable",
+                    details={
+                        "model_name": model_name,
+                        "model_version": model_version,
+                        "artifact_path": str(model_info.get("path") or ""),
+                    },
+                ) from exc
+            except ValueError as exc:
+                raise ModelActivationError(
+                    "invalid_metadata",
+                    "Model metadata is invalid and cannot be activated",
+                    details={"model_name": model_name, "model_version": model_version},
+                ) from exc
             self.registry["active_key"] = key
             self._save_registry()
 
         if self.active is None:
-            raise RuntimeError("Failed to activate model")
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Model activation completed without an active model in memory",
+                details={"model_name": model_name, "model_version": model_version},
+            )
         return self.active.metadata
+
+    def _validate_registry_entry_for_activation(
+        self,
+        *,
+        key: str,
+        model_name: str,
+        model_version: str,
+    ) -> dict[str, Any]:
+        model_info = self.registry["models"].get(key)
+        if not isinstance(model_info, dict):
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Registry entry is malformed",
+                details={"key": key},
+            )
+
+        metadata_payload = model_info.get("metadata")
+        if not isinstance(metadata_payload, dict):
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Registry metadata payload is missing",
+                details={"key": key},
+            )
+
+        try:
+            metadata = ModelMetadata.model_validate(metadata_payload)
+        except Exception as exc:  # noqa: BLE001
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Registry metadata payload is invalid",
+                details={"key": key},
+            ) from exc
+
+        if metadata.model_name != model_name or metadata.model_version != model_version:
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Registry metadata identity mismatch",
+                details={
+                    "expected_model_name": model_name,
+                    "expected_model_version": model_version,
+                    "metadata_model_name": metadata.model_name,
+                    "metadata_model_version": metadata.model_version,
+                },
+            )
+
+        if metadata.feature_dim <= 0:
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Model feature dimension is invalid",
+                details={"feature_dim": metadata.feature_dim, "key": key},
+            )
+
+        if not math.isfinite(float(metadata.threshold)) or float(metadata.threshold) <= 0:
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Model threshold is invalid",
+                details={"threshold": metadata.threshold, "key": key},
+            )
+
+        model_path = self._resolve_model_path(str(model_info.get("path") or ""))
+        if not model_path.exists() or not model_path.is_file():
+            raise ModelActivationError(
+                "artifact_missing",
+                "Model artifact file does not exist",
+                details={"artifact_path": str(model_path), "key": key},
+            )
+        try:
+            with model_path.open("rb"):
+                pass
+        except OSError as exc:
+            raise ModelActivationError(
+                "artifact_missing",
+                "Model artifact file is not readable",
+                details={"artifact_path": str(model_path), "key": key},
+            ) from exc
+
+        preprocessing = model_info.get("preprocessing") or {}
+        mean = preprocessing.get("mean") if isinstance(preprocessing, dict) else None
+        std = preprocessing.get("std") if isinstance(preprocessing, dict) else None
+        if mean is not None and not isinstance(mean, list):
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Preprocessing mean payload must be a list",
+                details={"key": key},
+            )
+        if std is not None and not isinstance(std, list):
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Preprocessing std payload must be a list",
+                details={"key": key},
+            )
+        if isinstance(mean, list) and len(mean) != metadata.feature_dim:
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Preprocessing mean length does not match feature dimension",
+                details={"feature_dim": metadata.feature_dim, "mean_length": len(mean), "key": key},
+            )
+        if isinstance(std, list) and len(std) != metadata.feature_dim:
+            raise ModelActivationError(
+                "invalid_metadata",
+                "Preprocessing std length does not match feature dimension",
+                details={"feature_dim": metadata.feature_dim, "std_length": len(std), "key": key},
+            )
+
+        return model_info
 
     def get_active_metadata(self) -> ModelMetadata:
         if self.active is None:
@@ -145,7 +307,9 @@ class ModelStore:
     async def _load_active(self, key: str) -> None:
         model_info = self.registry["models"][key]
         metadata = ModelMetadata(**model_info["metadata"])
-        path = Path(model_info["path"])
+        path = self._resolve_model_path(model_info["path"])
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f"Model artifact does not exist: {path}")
         model = await asyncio.to_thread(tf.keras.models.load_model, path)
         preprocessing = model_info.get("preprocessing") or {}
         mean = preprocessing.get("mean") or [0.0] * metadata.feature_dim
@@ -163,6 +327,12 @@ class ModelStore:
             scaler_mean=[float(v) for v in mean],
             scaler_std=[float(v if float(v) != 0.0 else 1.0) for v in std],
         )
+
+    def _resolve_model_path(self, path_value: str) -> Path:
+        path = Path(path_value)
+        if path.is_absolute():
+            return path
+        return (self.model_dir / path).resolve()
 
     def _save_registry(self) -> None:
         self.registry_path.write_text(json.dumps(self.registry, indent=2, default=str))

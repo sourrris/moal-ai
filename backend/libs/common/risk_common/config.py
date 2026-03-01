@@ -1,4 +1,4 @@
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -121,6 +121,36 @@ class BaseServiceSettings(BaseSettings):
     connector_enable_abusech: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @staticmethod
+    def _is_placeholder_secret(value: str) -> bool:
+        normalized = (value or "").strip()
+        if not normalized:
+            return True
+        return normalized in {
+            "change-me-in-prod",
+            "change-me-refresh-secret",
+            "changeme",
+            "default",
+            "secret",
+        }
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> "BaseServiceSettings":
+        env_name = (self.environment or "").strip().lower()
+        if env_name not in {"prod", "production"}:
+            return self
+
+        errors: list[str] = []
+        if self.jwt_algorithm.upper().startswith("HS"):
+            if self._is_placeholder_secret(self.jwt_secret_key) or len(self.jwt_secret_key) < 32:
+                errors.append("JWT_SECRET must be set to a non-default value with length >= 32 for HS* algorithms")
+            if self._is_placeholder_secret(self.jwt_refresh_secret_key) or len(self.jwt_refresh_secret_key) < 32:
+                errors.append("JWT_REFRESH_SECRET must be set to a non-default value with length >= 32")
+
+        if errors:
+            raise ValueError("Production secret validation failed: " + "; ".join(errors))
+        return self
 
     def uvicorn_config(self) -> dict:
         """Return host/port settings for Uvicorn startup."""

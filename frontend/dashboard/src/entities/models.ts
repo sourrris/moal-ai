@@ -32,6 +32,23 @@ export const modelMetricsPointSchema = z.object({
   volume: z.coerce.number().nullable().default(0)
 });
 
+export const modelTrainingSummarySchema = z.object({
+  run_id: z.string().nullable().optional(),
+  model_name: z.string().nullable().optional(),
+  model_version: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  started_at: z.string().nullable().optional(),
+  finished_at: z.string().nullable().optional(),
+  initiated_by: z.string().nullable().optional(),
+  sample_count: z.coerce.number().default(0),
+  train_loss: z.coerce.number().nullable().optional(),
+  val_loss: z.coerce.number().nullable().optional(),
+  threshold: z.coerce.number().nullable().optional(),
+  threshold_quantile: z.coerce.number().nullable().optional(),
+  dataset_lineage: z.record(z.any()).default({}),
+  dataset_summary: z.record(z.any()).default({})
+});
+
 export const modelMetricsSchema = z.object({
   model_version: z.string(),
   anomaly_hit_rate: z.number(),
@@ -40,7 +57,8 @@ export const modelMetricsSchema = z.object({
     p50: z.number().nullable(),
     p95: z.number().nullable()
   }),
-  threshold_evolution: z.array(modelMetricsPointSchema)
+  threshold_evolution: z.array(modelMetricsPointSchema),
+  latest_training_summary: modelTrainingSummarySchema.nullable().optional()
 });
 
 export const modelTrainResponseSchema = z.object({

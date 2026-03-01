@@ -128,12 +128,30 @@ class ModelMetricsPoint(BaseModel):
     volume: int = 0
 
 
+class ModelTrainingSummary(BaseModel):
+    run_id: UUID | None = None
+    model_name: str | None = None
+    model_version: str | None = None
+    status: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    initiated_by: str | None = None
+    sample_count: int = 0
+    train_loss: float | None = None
+    val_loss: float | None = None
+    threshold: float | None = None
+    threshold_quantile: float | None = None
+    dataset_lineage: dict[str, Any] = Field(default_factory=dict)
+    dataset_summary: dict[str, Any] = Field(default_factory=dict)
+
+
 class ModelMetricsResponse(BaseModel):
     model_version: str
     anomaly_hit_rate: float = 0.0
     total_inferences: int = 0
     inference_latency_ms: dict[str, float | None] = Field(default_factory=lambda: {"p50": None, "p95": None})
     threshold_evolution: list[ModelMetricsPoint] = Field(default_factory=list)
+    latest_training_summary: ModelTrainingSummary | None = None
 
 
 class ModelTrainResponse(BaseModel):

@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models import Event, User
+from app.infrastructure.db import set_tenant_context
 
 pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
@@ -563,6 +564,30 @@ class ModelRepository:
         )
         summary_row = dict(summary.one()._mapping)
 
+        training_summary_row = await session.execute(
+            text(
+                """
+                SELECT
+                    run_id,
+                    model_name,
+                    model_version,
+                    status,
+                    started_at,
+                    finished_at,
+                    initiated_by,
+                    parameters,
+                    metrics
+                FROM model_training_runs
+                WHERE model_version = :model_version
+                  AND status = 'success'
+                ORDER BY finished_at DESC NULLS LAST, started_at DESC
+                LIMIT 1
+                """
+            ),
+            {"model_version": model_version},
+        )
+        latest_training = training_summary_row.first()
+
         threshold_points = await session.execute(
             text(
                 """
@@ -580,12 +605,58 @@ class ModelRepository:
             {"model_version": model_version},
         )
 
+        latest_training_summary = None
+        if latest_training:
+            training_payload = dict(latest_training._mapping)
+            metrics = (
+                dict(training_payload["metrics"])
+                if isinstance(training_payload.get("metrics"), dict)
+                else {}
+            )
+            parameters = (
+                dict(training_payload["parameters"])
+                if isinstance(training_payload.get("parameters"), dict)
+                else {}
+            )
+            dataset_summary = (
+                dict(parameters.get("dataset_summary"))
+                if isinstance(parameters.get("dataset_summary"), dict)
+                else {}
+            )
+            sample_count = int(
+                metrics.get("sample_count")
+                or dataset_summary.get("effective_sample_count")
+                or dataset_summary.get("raw_sample_count")
+                or 0
+            )
+            latest_training_summary = {
+                "run_id": training_payload.get("run_id"),
+                "model_name": training_payload.get("model_name"),
+                "model_version": training_payload.get("model_version"),
+                "status": training_payload.get("status"),
+                "started_at": training_payload.get("started_at"),
+                "finished_at": training_payload.get("finished_at"),
+                "initiated_by": training_payload.get("initiated_by"),
+                "sample_count": sample_count,
+                "train_loss": metrics.get("train_loss"),
+                "val_loss": metrics.get("val_loss"),
+                "threshold": metrics.get("threshold"),
+                "threshold_quantile": metrics.get("threshold_quantile"),
+                "dataset_lineage": (
+                    dict(parameters.get("dataset_lineage"))
+                    if isinstance(parameters.get("dataset_lineage"), dict)
+                    else {}
+                ),
+                "dataset_summary": dataset_summary,
+            }
+
         return {
             "model_version": model_version,
             "anomaly_hit_rate": float(summary_row.get("anomaly_hit_rate") or 0.0),
             "total_inferences": int(summary_row.get("total_inferences") or 0),
             "inference_latency_ms": {"p50": None, "p95": None},
             "threshold_evolution": [dict(row._mapping) for row in threshold_points],
+            "latest_training_summary": latest_training_summary,
         }
 
     @staticmethod
@@ -596,10 +667,13 @@ class ModelRepository:
         lookback_hours: int,
         max_samples: int,
     ) -> list[list[float]]:
+        if tenant_id:
+            await set_tenant_context(session, tenant_id)
+
         where_clauses = [
-            "features IS NOT NULL",
-            "array_length(features, 1) IS NOT NULL",
-            "ingested_at >= NOW() - make_interval(hours => :lookback_hours)",
+            "feature_vector IS NOT NULL",
+            "array_length(feature_vector, 1) IS NOT NULL",
+            "created_at >= NOW() - make_interval(hours => :lookback_hours)",
         ]
         params: dict[str, object] = {
             "lookback_hours": int(lookback_hours),
@@ -613,10 +687,10 @@ class ModelRepository:
         rows = await session.execute(
             text(
                 f"""
-                SELECT features
-                FROM events
+                SELECT feature_vector
+                FROM risk_decisions
                 WHERE {where_sql}
-                ORDER BY ingested_at DESC
+                ORDER BY created_at DESC
                 LIMIT :max_samples
                 """
             ),
@@ -625,7 +699,7 @@ class ModelRepository:
 
         features: list[list[float]] = []
         for row in rows:
-            raw = row._mapping.get("features")
+            raw = row._mapping.get("feature_vector")
             if not raw:
                 continue
             features.append([float(value) for value in raw])

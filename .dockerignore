@@ -5,3 +5,16 @@
 **/node_modules
 **/*.pyc
 .git
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.crt
+**/*.cer
+**/id_rsa
+**/id_dsa
+**/.aws
+**/.ssh

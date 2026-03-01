@@ -96,6 +96,29 @@ wait_for_url() {
   echo "Ready: ${name} (${url})"
 }
 
+ensure_port_free() {
+  local port="$1"
+  local name="$2"
+  if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "Port ${port} is already in use; cannot start ${name}. Stop the conflicting process and retry." >&2
+    return 1
+  fi
+}
+
+ensure_frontend_dependencies() {
+  local dashboard_dir="$ROOT_DIR/frontend/dashboard"
+  if [[ ! -d "$dashboard_dir/node_modules" ]]; then
+    echo "Frontend dependencies missing. Installing in $dashboard_dir..."
+    (cd "$dashboard_dir" && npm install)
+    return 0
+  fi
+
+  if ! (cd "$dashboard_dir" && node -e "require.resolve('vite-plugin-pwa/package.json')" >/dev/null 2>&1); then
+    echo "Frontend dependencies are out of sync with package.json. Reinstalling..."
+    (cd "$dashboard_dir" && npm install)
+  fi
+}
+
 echo "Starting backend services..."
 start_backend "ml-inference" "$ROOT_DIR/backend/services/ml_inference" "8001" "MODEL_DIR=$MODEL_DIR"
 start_backend "feature-enrichment" "$ROOT_DIR/backend/services/feature_enrichment" "8040"
@@ -106,6 +129,8 @@ start_backend "event-worker" "$ROOT_DIR/backend/services/event_worker" "8010" "M
 start_backend "notification-service" "$ROOT_DIR/backend/services/notification_service" "8020"
 
 echo "Starting frontend dashboard..."
+ensure_frontend_dependencies
+ensure_port_free "5173" "dashboard"
 start_frontend
 
 echo "Waiting for service health checks..."

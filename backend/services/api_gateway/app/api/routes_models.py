@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import math
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
-from app.application.services import ModelManagementService
+from app.application.services import ModelGatewayError, ModelManagementService
 from app.infrastructure.db import get_db_session
 from app.infrastructure.repositories import ModelRepository
 from app.infrastructure.repositories_v2 import ModelOpsRepository
@@ -27,6 +28,12 @@ router = APIRouter(prefix="/v1/models", tags=["models"])
 class ActivateModelRequest(BaseModel):
     model_name: str
     model_version: str
+
+
+ACTIVATION_MIN_SAMPLES = 64
+ACTIVATION_MIN_RELATIVE_IMPROVEMENT = 0.02
+ACTIVATION_THRESHOLD_RATIO_MIN = 0.5
+ACTIVATION_THRESHOLD_RATIO_MAX = 2.0
 
 
 def _as_float(value: object | None, default: float | None = None) -> float | None:
@@ -126,6 +133,130 @@ def _normalize_training_features(
     return normalized, dominant_dim
 
 
+def _as_dict(value: object) -> dict:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _activation_error_detail(code: str, message: str, **extra: object) -> dict:
+    payload = {"code": code, "message": message}
+    payload.update({key: value for key, value in extra.items() if value is not None})
+    return payload
+
+
+def _activation_http_error(code: str, message: str, **extra: object) -> HTTPException:
+    status_map = {
+        "not_registry_model": 404,
+        "artifact_missing": 409,
+        "invalid_metadata": 422,
+    }
+    return HTTPException(status_code=status_map.get(code, 422), detail=_activation_error_detail(code, message, **extra))
+
+
+def _training_sample_count(row: dict | None) -> int:
+    if not row:
+        return 0
+    metrics = _as_dict(row.get("metrics"))
+    parameters = _as_dict(row.get("parameters"))
+    dataset_summary = _as_dict(parameters.get("dataset_summary"))
+    return _as_int(
+        metrics.get("sample_count"),
+        _as_int(
+            dataset_summary.get("effective_sample_count"),
+            _as_int(
+                dataset_summary.get("raw_sample_count"),
+                _as_int(parameters.get("effective_sample_count"), 0),
+            ),
+        ),
+    )
+
+
+def _training_val_loss(row: dict | None) -> float | None:
+    if not row:
+        return None
+    metrics = _as_dict(row.get("metrics"))
+    return _as_float(metrics.get("val_loss"), _as_float(metrics.get("train_loss")))
+
+
+def _validate_activation_policy(
+    *,
+    candidate_model: dict,
+    candidate_run: dict | None,
+    active_model: ModelMetadata | None,
+    active_run: dict | None,
+) -> None:
+    sample_count = _training_sample_count(candidate_run)
+    if sample_count < ACTIVATION_MIN_SAMPLES:
+        raise _activation_http_error(
+            "invalid_metadata",
+            "Activation rejected: candidate model training dataset is below minimum sample gate",
+            minimum_samples=ACTIVATION_MIN_SAMPLES,
+            sample_count=sample_count,
+        )
+
+    candidate_threshold = _as_float(candidate_model.get("threshold"))
+    if candidate_threshold is None or not math.isfinite(candidate_threshold) or candidate_threshold <= 0:
+        raise _activation_http_error(
+            "invalid_metadata",
+            "Activation rejected: candidate threshold metadata is invalid",
+            candidate_threshold=candidate_threshold,
+        )
+
+    if active_model is not None:
+        active_threshold = _as_float(active_model.threshold)
+        if active_threshold is None or not math.isfinite(active_threshold) or active_threshold <= 0:
+            raise _activation_http_error(
+                "invalid_metadata",
+                "Activation rejected: active model threshold metadata is invalid",
+                active_threshold=active_threshold,
+            )
+
+        threshold_ratio = candidate_threshold / active_threshold
+        if threshold_ratio < ACTIVATION_THRESHOLD_RATIO_MIN or threshold_ratio > ACTIVATION_THRESHOLD_RATIO_MAX:
+            raise _activation_http_error(
+                "invalid_metadata",
+                "Activation rejected: candidate threshold is outside allowed range versus active model",
+                active_threshold=active_threshold,
+                candidate_threshold=candidate_threshold,
+                threshold_ratio=threshold_ratio,
+                min_ratio=ACTIVATION_THRESHOLD_RATIO_MIN,
+                max_ratio=ACTIVATION_THRESHOLD_RATIO_MAX,
+            )
+
+        if active_model.model_version != str(candidate_model.get("model_version") or ""):
+            candidate_val_loss = _training_val_loss(candidate_run)
+            active_val_loss = _training_val_loss(active_run)
+            if candidate_val_loss is None or active_val_loss is None or active_val_loss <= 0:
+                raise _activation_http_error(
+                    "invalid_metadata",
+                    "Activation rejected: missing comparable validation losses for relative-improvement gate",
+                    candidate_val_loss=candidate_val_loss,
+                    active_val_loss=active_val_loss,
+                )
+
+            relative_improvement = (active_val_loss - candidate_val_loss) / active_val_loss
+            if relative_improvement < ACTIVATION_MIN_RELATIVE_IMPROVEMENT:
+                raise _activation_http_error(
+                    "invalid_metadata",
+                    "Activation rejected: candidate model failed relative-improvement gate",
+                    relative_improvement=relative_improvement,
+                    required_minimum=ACTIVATION_MIN_RELATIVE_IMPROVEMENT,
+                    candidate_val_loss=candidate_val_loss,
+                    active_val_loss=active_val_loss,
+                )
+
+
+def _map_activation_gateway_error(exc: ModelGatewayError) -> HTTPException:
+    detail = exc.detail
+    if isinstance(detail, dict):
+        code = str(detail.get("code") or "")
+        message = str(detail.get("message") or "Model activation failed")
+        extra = {k: v for k, v in detail.items() if k not in {"code", "message"}}
+        if code in {"not_registry_model", "artifact_missing", "invalid_metadata"}:
+            return _activation_http_error(code, message, **extra)
+
+    return HTTPException(status_code=502, detail=f"Unable to activate model: {exc}")
+
+
 @router.get("/active", response_model=ModelMetadata)
 async def get_active_model(_: AuthClaims = Depends(require_scope("models:read"))) -> ModelMetadata:
     payload = await ModelManagementService.get_active_model()
@@ -154,6 +285,14 @@ async def train_model(
         "batch_size": payload.batch_size,
         "threshold_quantile": payload.threshold_quantile,
         "auto_activate": payload.auto_activate,
+        "dataset_lineage": {
+            "source_table": "risk_decisions" if training_source == "historical_events" else "request_payload",
+            "source_column": "feature_vector" if training_source == "historical_events" else "features",
+            "tenant_id": tenant_id,
+            "lookback_hours": payload.lookback_hours,
+            "collected_at": datetime.now(tz=UTC).isoformat(),
+            "compatibility_mode": "historical_events->risk_decisions.feature_vector",
+        },
     }
 
     run_id = await ModelOpsRepository.create_training_run(
@@ -171,6 +310,19 @@ async def train_model(
             lookback_hours=payload.lookback_hours,
             max_samples=payload.max_samples,
         )
+
+    feature_dim_histogram: dict[str, int] = {}
+    for vector in training_features:
+        if not vector:
+            continue
+        dim = str(len(vector))
+        feature_dim_histogram[dim] = feature_dim_histogram.get(dim, 0) + 1
+    run_parameters["dataset_summary"] = {
+        "raw_sample_count": len(training_features),
+        "feature_dim_histogram": feature_dim_histogram,
+        "lookback_window_start": (datetime.now(tz=UTC) - timedelta(hours=payload.lookback_hours)).isoformat(),
+        "lookback_window_end": datetime.now(tz=UTC).isoformat(),
+    }
 
     try:
         normalized_features, feature_dim = _normalize_training_features(
@@ -193,6 +345,11 @@ async def train_model(
     run_parameters["requested_sample_count"] = len(training_features)
     run_parameters["effective_sample_count"] = len(normalized_features)
     run_parameters["feature_dim"] = feature_dim
+    dataset_summary = _as_dict(run_parameters.get("dataset_summary"))
+    dataset_summary["effective_sample_count"] = len(normalized_features)
+    dataset_summary["effective_feature_dim"] = feature_dim
+    dataset_summary["dropped_sample_count"] = max(len(training_features) - len(normalized_features), 0)
+    run_parameters["dataset_summary"] = dataset_summary
 
     active_before: dict | None = None
     try:
@@ -249,6 +406,8 @@ async def train_model(
         "feature_dim": feature_dim,
         "training_source": training_source,
         "baseline_comparison": baseline_comparison,
+        "dataset_lineage": run_parameters.get("dataset_lineage"),
+        "dataset_summary": run_parameters.get("dataset_summary"),
     }
 
     await ModelOpsRepository.finalize_training_run(
@@ -279,31 +438,80 @@ async def train_model(
 async def activate_model(
     payload: ActivateModelRequest,
     _: AuthClaims = Depends(require_scope("models:write")),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ModelMetadata:
     try:
         registry_models = await ModelManagementService.list_all_models()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail="Unable to validate registry model artifacts for activation") from exc
 
-    is_registry_model = any(
-        str(model.get("model_name") or "") == payload.model_name
-        and str(model.get("model_version") or "") == payload.model_version
-        for model in registry_models
+    candidate_model = next(
+        (
+            model
+            for model in registry_models
+            if str(model.get("model_name") or "") == payload.model_name
+            and str(model.get("model_version") or "") == payload.model_version
+        ),
+        None,
     )
-    if not is_registry_model:
-        raise HTTPException(
-            status_code=404,
-            detail="Activation rejected: model is inference-only or registry artifacts are missing",
+    if not candidate_model:
+        raise _activation_http_error(
+            "not_registry_model",
+            "Activation rejected: model is not present in the registry catalog",
+            model_name=payload.model_name,
+            model_version=payload.model_version,
         )
+
+    candidate_run = await ModelOpsRepository.get_latest_successful_training_run(
+        session,
+        model_name=payload.model_name,
+        model_version=payload.model_version,
+    )
+    if not candidate_run:
+        raise _activation_http_error(
+            "invalid_metadata",
+            "Activation rejected: no successful training run metadata found for requested model version",
+            model_name=payload.model_name,
+            model_version=payload.model_version,
+        )
+
+    active_model: ModelMetadata | None = None
+    active_run: dict | None = None
+    try:
+        active_payload = await ModelManagementService.get_active_model()
+        active_model = _normalize_model_metadata(active_payload)
+    except Exception:  # noqa: BLE001
+        active_model = None
+
+    if active_model:
+        active_run = await ModelOpsRepository.get_latest_successful_training_run(
+            session,
+            model_name=active_model.model_name,
+            model_version=active_model.model_version,
+        )
+
+    _validate_activation_policy(
+        candidate_model=candidate_model,
+        candidate_run=candidate_run,
+        active_model=active_model,
+        active_run=active_run,
+    )
 
     try:
         result = await ModelManagementService.activate_model(payload.model_dump())
+    except ModelGatewayError as exc:
+        raise _map_activation_gateway_error(exc) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Unable to activate model: {exc}") from exc
 
     model = _normalize_model_metadata(result)
     if not model:
-        raise HTTPException(status_code=500, detail="Model activation returned invalid metadata")
+        raise _activation_http_error(
+            "invalid_metadata",
+            "Model activation returned malformed metadata payload",
+            model_name=payload.model_name,
+            model_version=payload.model_version,
+        )
     return model
 
 
