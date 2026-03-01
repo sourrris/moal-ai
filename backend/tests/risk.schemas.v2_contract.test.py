@@ -11,7 +11,7 @@ from risk_common.schemas_v2 import DataSourceRunSummary, DataSourceStatus, RiskE
 def test_risk_event_ingest_schema_normalizes_currency() -> None:
     payload = RiskEventIngestRequest.model_validate(
         {
-            "idempotency_key": "idempotency-key-123",
+            "idempotency_key": "idem-token-123",
             "source": "gateway",
             "event_type": "transaction",
             "transaction": {
@@ -25,7 +25,7 @@ def test_risk_event_ingest_schema_normalizes_currency() -> None:
     )
 
     assert payload.transaction.currency == "USD"
-    assert payload.idempotency_key == "idempotency-key-123"
+    assert payload.idempotency_key == "idem-token-123"
 
 
 def test_data_source_status_schema_accepts_health_fields() -> None:
