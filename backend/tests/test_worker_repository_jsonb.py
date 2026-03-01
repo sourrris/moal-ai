@@ -1,8 +1,7 @@
 """Regression tests for JSONB serialization in v2 worker repositories."""
 
-import json
 import importlib.util
-import sys
+import json
 from pathlib import Path
 from uuid import uuid4
 

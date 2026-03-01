@@ -1,9 +1,10 @@
 """Training flow behavior tests for models endpoints."""
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -20,7 +21,7 @@ from risk_common.schemas_v2 import AuthClaims
 @pytest.mark.asyncio
 async def test_train_model_records_success_run(monkeypatch: pytest.MonkeyPatch) -> None:
     run_id = uuid4()
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
     claims = AuthClaims(sub="tester", tenant_id="tenant-alpha", scopes=["models:write", "models:read"])
     session = SimpleNamespace()
 
@@ -109,7 +110,7 @@ async def test_train_model_records_success_run(monkeypatch: pytest.MonkeyPatch) 
 @pytest.mark.asyncio
 async def test_train_model_records_failed_run_when_ml_training_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     run_id = uuid4()
-    captured: dict[str, object] = {}
+    captured: dict[str, Any] = {}
     claims = AuthClaims(sub="tester", tenant_id="tenant-alpha", scopes=["models:write", "models:read"])
     session = SimpleNamespace()
 
@@ -229,7 +230,7 @@ async def test_training_runs_normalize_null_json_fields(monkeypatch: pytest.Monk
                 "model_name": "risk_autoencoder",
                 "model_version": None,
                 "status": "running",
-                "started_at": datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc),
+                "started_at": datetime(2026, 3, 1, 10, 0, tzinfo=UTC),
                 "finished_at": None,
                 "parameters": None,
                 "metrics": None,
