@@ -70,6 +70,16 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    if (!lastQueuedAck) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setLastQueuedAck(null);
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [lastQueuedAck]);
+
+  useEffect(() => {
     const runs = sourceRunsQuery.data;
     if (!runs || runs.length === 0) {
       return;
