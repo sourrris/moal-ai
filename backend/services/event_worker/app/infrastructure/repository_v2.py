@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from uuid import UUID
 
 from sqlalchemy import text
@@ -32,8 +33,8 @@ async def persist_enrichment(
             ) VALUES (
                 :tenant_id,
                 :event_id,
-                :sources,
-                :enrichment_payload,
+                CAST(:sources AS JSONB),
+                CAST(:enrichment_payload AS JSONB),
                 :match_confidence,
                 :enrichment_latency_ms
             )
@@ -49,8 +50,8 @@ async def persist_enrichment(
         {
             "tenant_id": tenant_id,
             "event_id": str(event_id),
-            "sources": sources,
-            "enrichment_payload": enrichment_payload,
+            "sources": json.dumps(sources),
+            "enrichment_payload": json.dumps(enrichment_payload),
             "match_confidence": match_confidence,
             "enrichment_latency_ms": enrichment_latency_ms,
         },
@@ -106,7 +107,7 @@ async def persist_decision(
                 :ml_threshold,
                 :decision_latency_ms,
                 :feature_vector,
-                :decision_payload
+                CAST(:decision_payload AS JSONB)
             )
             ON CONFLICT (tenant_id, event_id)
             DO UPDATE SET
@@ -138,7 +139,7 @@ async def persist_decision(
             "ml_threshold": ml_threshold,
             "decision_latency_ms": decision_latency_ms,
             "feature_vector": feature_vector,
-            "decision_payload": decision_payload,
+            "decision_payload": json.dumps(decision_payload),
         },
     )
     decision = dict(row.one()._mapping)

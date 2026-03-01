@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../app/state/auth-context';
+import { AmbientBackground } from '../../shared/ui/AmbientBackground';
+import { Card } from '../../shared/ui/card';
 
 export function AuthCallbackPage() {
   const { token, setSession } = useAuth();
@@ -22,9 +24,11 @@ export function AuthCallbackPage() {
 
   return (
     <div className="login-layout">
-      <div className="login-card">
-        <h1>Completing sign in...</h1>
-      </div>
+      <AmbientBackground variant="hero" />
+      <Card className="login-card">
+        <h1 className="text-3xl font-bold tracking-tight">Completing sign in...</h1>
+        <p className="muted">We are verifying your session and redirecting you to the dashboard.</p>
+      </Card>
     </div>
   );
 }

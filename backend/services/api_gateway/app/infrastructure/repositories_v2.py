@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from risk_common.schemas_v2 import RiskEventV2
@@ -422,3 +423,74 @@ class ModelOpsRepository:
             params,
         )
         return [dict(row._mapping) for row in rows]
+
+    @staticmethod
+    async def create_training_run(
+        session: AsyncSession,
+        *,
+        model_name: str,
+        parameters: dict[str, Any],
+        initiated_by: str | None,
+    ) -> UUID:
+        row = await session.execute(
+            text(
+                """
+                INSERT INTO model_training_runs (
+                    model_name,
+                    status,
+                    parameters,
+                    initiated_by
+                ) VALUES (
+                    :model_name,
+                    'running',
+                    CAST(:parameters AS JSONB),
+                    :initiated_by
+                )
+                RETURNING run_id
+                """
+            ),
+            {
+                "model_name": model_name,
+                "parameters": json.dumps(parameters),
+                "initiated_by": initiated_by,
+            },
+        )
+        await session.commit()
+        run_id = row.scalar_one()
+        return run_id if isinstance(run_id, UUID) else UUID(str(run_id))
+
+    @staticmethod
+    async def finalize_training_run(
+        session: AsyncSession,
+        *,
+        run_id: UUID,
+        status: str,
+        model_version: str | None,
+        metrics: dict[str, Any],
+        parameters: dict[str, Any] | None = None,
+        notes: str | None = None,
+    ) -> None:
+        await session.execute(
+            text(
+                """
+                UPDATE model_training_runs
+                SET
+                    status = :status,
+                    model_version = :model_version,
+                    metrics = CAST(:metrics AS JSONB),
+                    parameters = COALESCE(CAST(:parameters AS JSONB), parameters),
+                    notes = :notes,
+                    finished_at = NOW()
+                WHERE run_id = :run_id
+                """
+            ),
+            {
+                "run_id": str(run_id),
+                "status": status,
+                "model_version": model_version,
+                "metrics": json.dumps(metrics),
+                "parameters": json.dumps(parameters) if parameters is not None else None,
+                "notes": notes,
+            },
+        )
+        await session.commit()

@@ -1,5 +1,5 @@
 from app.infrastructure.model_store import ModelStore
-from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainRequest
+from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainingResult, ModelTrainRequest
 
 
 class InferenceService:
@@ -9,12 +9,16 @@ class InferenceService:
     async def infer(self, payload: InferenceRequest) -> InferenceResponse:
         return await self.model_store.infer(event_id=payload.event_id, features=payload.features)
 
-    async def train(self, payload: ModelTrainRequest) -> ModelMetadata:
+    async def train(self, payload: ModelTrainRequest) -> ModelTrainingResult:
+        if not payload.features:
+            raise ValueError("No training features were provided")
         return await self.model_store.train(
             model_name=payload.model_name,
             features=payload.features,
             epochs=payload.epochs,
             batch_size=payload.batch_size,
+            threshold_quantile=payload.threshold_quantile,
+            auto_activate=payload.auto_activate,
         )
 
     async def activate(self, model_name: str, model_version: str) -> ModelMetadata:

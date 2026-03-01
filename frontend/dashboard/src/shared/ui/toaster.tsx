@@ -63,11 +63,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     {toasts.map((t) => (
                         <div
                             key={t.id}
-                            className={`p-4 rounded-lg shadow-lg border pointer-events-auto flex justify-between items-start animate-in slide-in-from-right-full fade-in duration-300
-                ${t.type === 'info' ? 'bg-[var(--surface-color)] border-[var(--border-color)] text-[var(--text-primary)]' : ''}
-                ${t.type === 'success' ? 'bg-green-950 border-green-800 text-green-100' : ''}
-                ${t.type === 'warning' ? 'bg-yellow-950 border-yellow-800 text-yellow-100' : ''}
-                ${t.type === 'error' ? 'bg-red-950 border-red-800 text-red-100' : ''}
+                            className={`pointer-events-auto flex items-start justify-between rounded-2xl border bg-white p-4 shadow-panel animate-soft-fade
+                ${t.type === 'info' ? 'border-zinc-200 text-zinc-900' : ''}
+                ${t.type === 'success' ? 'border-emerald-200 text-emerald-800' : ''}
+                ${t.type === 'warning' ? 'border-amber-200 text-amber-800' : ''}
+                ${t.type === 'error' ? 'border-red-200 text-red-800' : ''}
               `}
                         >
                             <div className="flex flex-col gap-1 pr-4">

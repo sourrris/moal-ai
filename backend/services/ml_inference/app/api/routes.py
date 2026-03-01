@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Request
 
 from app.application.service import InferenceService
-from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainRequest
+from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainingResult, ModelTrainRequest
 
 router = APIRouter(prefix="/v1", tags=["ml"])
 
@@ -25,8 +25,8 @@ async def infer(payload: InferenceRequest, request: Request) -> InferenceRespons
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/models/train", response_model=ModelMetadata)
-async def train_model(payload: ModelTrainRequest, request: Request) -> ModelMetadata:
+@router.post("/models/train", response_model=ModelTrainingResult)
+async def train_model(payload: ModelTrainRequest, request: Request) -> ModelTrainingResult:
     service = get_service(request)
     try:
         return await service.train(payload)

@@ -9,16 +9,9 @@ import { fetchDataSourceRuns, fetchDataSourceStatus } from '../../shared/api/dat
 import { fetchOverviewMetrics } from '../../shared/api/overview';
 import { formatDateTime } from '../../shared/lib/time';
 import { Badge } from '../../shared/ui/badge';
-import { Card } from '../../shared/ui/card';
-
-function MetricTile({ label, value }: { label: string; value: string }) {
-  return (
-    <Card className="metric-tile">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </Card>
-  );
-}
+import { DataPanel } from '../../shared/ui/DataPanel';
+import { KpiCard } from '../../shared/ui/KpiCard';
+import { DashboardPageFrame } from '../../widgets/layout/DashboardPageFrame';
 
 function formatDuration(seconds: number | null | undefined) {
   if (seconds == null) {
@@ -61,6 +54,15 @@ function sourceStatusBadge(
     return 'success' as const;
   }
   return 'info' as const;
+}
+
+function scrollToSection(id: string) {
+  const target = document.getElementById(id);
+  if (!target) {
+    return;
+  }
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
 }
 
 export function OverviewPage() {
@@ -115,15 +117,10 @@ export function OverviewPage() {
 
   const data = metricsQuery.data;
   const latestLiveMetric = live.metrics[0];
-  
-  // Use live metrics to override static KPI snapshot if available
+
   const activeAnomalies = data.active_anomalies;
-  const alertRate = latestLiveMetric?.total_alerts_1m != null 
-    ? latestLiveMetric.total_alerts_1m * 60 
-    : data.alert_rate;
-  const ingestionRate = latestLiveMetric?.total_events_1m != null
-    ? latestLiveMetric.total_events_1m * 60
-    : data.ingestion_rate;
+  const alertRate = latestLiveMetric?.total_alerts_1m != null ? latestLiveMetric.total_alerts_1m * 60 : data.alert_rate;
+  const ingestionRate = latestLiveMetric?.total_events_1m != null ? latestLiveMetric.total_events_1m * 60 : data.ingestion_rate;
 
   const dataSourceStatuses = dataSourceStatusQuery.data ?? [];
   const dataSourceRuns = dataSourceRunsQuery.data ?? [];
@@ -135,60 +132,87 @@ export function OverviewPage() {
   }));
 
   return (
-    <section className="stack-lg">
-      <div className="panel-header">
-        <h2>Operational Snapshot</h2>
+    <DashboardPageFrame
+      chips={
         <Badge variant={live.connected ? (live.stale ? 'warning' : 'success') : 'critical'}>
           {live.connected ? (live.stale ? 'degraded stream' : 'live stream') : 'stream offline'}
         </Badge>
-      </div>
-
-      <div className="metrics-grid">
-        <MetricTile label="Active anomalies" value={String(activeAnomalies)} />
-        <MetricTile label="Alert rate" value={`${alertRate.toFixed(2)} / hr`} />
-        <MetricTile label="Ingestion throughput" value={`${ingestionRate.toFixed(2)} / hr`} />
-        <MetricTile label="Model health" value={`${data.model_health.toFixed(1)}%`} />
-        <MetricTile
+      }
+    >
+      <div className="kpi-grid">
+        <KpiCard
+          label="Active anomalies"
+          value={String(activeAnomalies)}
+          meta="current posture"
+          onClick={() => scrollToSection('critical-alerts-section')}
+        />
+        <KpiCard
+          label="Alert rate"
+          value={`${alertRate.toFixed(2)} / hr`}
+          meta={latestLiveMetric?.total_alerts_1m != null ? 'live adjusted' : 'snapshot'}
+          onClick={() => scrollToSection('trend-section')}
+        />
+        <KpiCard
+          label="Ingestion throughput"
+          value={`${ingestionRate.toFixed(2)} / hr`}
+          meta={latestLiveMetric?.total_events_1m != null ? 'live adjusted' : 'snapshot'}
+          onClick={() => scrollToSection('sources-section')}
+        />
+        <KpiCard
+          label="Failure rate"
+          value={`${data.failure_rate.toFixed(2)}%`}
+          meta={data.failure_rate > 1 ? 'watch closely' : 'within range'}
+          trend={data.failure_rate > 1 ? 'down' : 'neutral'}
+          onClick={() => scrollToSection('sources-section')}
+        />
+        <KpiCard
+          label="Model health"
+          value={`${data.model_health.toFixed(1)}%`}
+          meta={data.model_health >= 95 ? 'healthy' : 'degraded'}
+          trend={data.model_health >= 95 ? 'up' : 'down'}
+          onClick={() => scrollToSection('trend-section')}
+        />
+        <KpiCard
           label="Live risk score"
           value={latestLiveMetric ? latestLiveMetric.risk_score.toFixed(3) : 'n/a'}
+          meta={latestLiveMetric?.decision_latency_ms ? `latency ${latestLiveMetric.decision_latency_ms}ms` : 'awaiting live metric'}
+          onClick={() => scrollToSection('critical-alerts-section')}
         />
       </div>
 
-      <div className="grid-two">
-        <Card>
-          <h3>Anomaly score vs threshold</h3>
+      <div id="trend-section" className="grid-two scroll-mt-40">
+        <DataPanel title="Anomaly score vs threshold" description="Trendline for anomaly score, threshold, and volume context.">
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={series}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis dataKey="time" hide />
               <YAxis width={56} />
-              <Tooltip />
+              <Tooltip
+                contentStyle={{ borderRadius: 12, borderColor: '#e4e4e7', fontSize: 12 }}
+                labelStyle={{ fontWeight: 600 }}
+              />
               <Area type="monotone" dataKey="score" stroke="var(--accent)" fill="rgba(37,99,235,0.18)" />
               <Area type="monotone" dataKey="threshold" stroke="var(--status-warning)" fill="rgba(217,119,6,0.14)" />
             </AreaChart>
           </ResponsiveContainer>
-        </Card>
+        </DataPanel>
 
-        <Card>
-          <h3>Severity distribution</h3>
+        <DataPanel title="Severity distribution" description="Current anomaly severity mix for active time window.">
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               <Pie data={data.severity_distribution} dataKey="count" nameKey="severity" outerRadius={96} />
-              <Tooltip />
+              <Tooltip contentStyle={{ borderRadius: 12, borderColor: '#e4e4e7', fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
-        </Card>
+        </DataPanel>
       </div>
 
-      <Card>
-        <div className="panel-header">
-          <h3>Internet feed activity</h3>
-          <Badge variant="info">{dataSourceStatuses.length} sources</Badge>
-        </div>
-        <p className="muted">
-          Successful source runs publish `reference_data.updated` queue events that feed enrichment and scoring.
-        </p>
-
+      <DataPanel
+        title="Internet feed activity"
+        description="Successful source runs publish reference intelligence used for enrichment and scoring."
+        badge={<Badge variant="info">{dataSourceStatuses.length} sources</Badge>}
+        className="scroll-mt-40"
+      >
         {dataSourceStatusQuery.isError && (
           <p className="inline-warning">
             Unable to read connector status. If you see 401 for v2 endpoints, sign out and sign in again to refresh a
@@ -197,21 +221,21 @@ export function OverviewPage() {
         )}
 
         {!dataSourceStatusQuery.isError && (
-          <div className="table-wrap">
+          <div id="sources-section" className="table-wrap scroll-mt-40">
             <table className="data-table">
-              <thead>
+              <thead className="sticky-table-head">
                 <tr>
-                  <th>Source</th>
-                  <th>State</th>
-                  <th>Latest run</th>
-                  <th>Freshness</th>
-                  <th>Failures</th>
-                  <th>Next run</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">State</th>
+                  <th scope="col">Latest run</th>
+                  <th scope="col">Freshness</th>
+                  <th scope="col">Failures</th>
+                  <th scope="col">Next run</th>
                 </tr>
               </thead>
               <tbody>
                 {dataSourceStatuses.map((source) => (
-                  <tr key={source.source_name}>
+                  <tr key={source.source_name} className="interactive-row">
                     <td className="mono">{source.source_name}</td>
                     <td>
                       <Badge
@@ -239,26 +263,24 @@ export function OverviewPage() {
             </table>
           </div>
         )}
+      </DataPanel>
 
-        <div className="panel-header" style={{ marginTop: '0.8rem' }}>
-          <h3>Latest connector runs</h3>
-          <Badge variant="neutral">{dataSourceRuns.length} rows</Badge>
-        </div>
+      <DataPanel title="Latest connector runs" badge={<Badge variant="neutral">{dataSourceRuns.length} rows</Badge>}>
         <div className="table-wrap">
           <table className="data-table">
-            <thead>
+            <thead className="sticky-table-head">
               <tr>
-                <th>Source</th>
-                <th>Status</th>
-                <th>Fetched</th>
-                <th>Upserted</th>
-                <th>Started</th>
-                <th>Finished</th>
+                <th scope="col">Source</th>
+                <th scope="col">Status</th>
+                <th scope="col">Fetched</th>
+                <th scope="col">Upserted</th>
+                <th scope="col">Started</th>
+                <th scope="col">Finished</th>
               </tr>
             </thead>
             <tbody>
               {dataSourceRuns.map((run) => (
-                <tr key={run.run_id}>
+                <tr key={run.run_id} className="interactive-row">
                   <td className="mono">{run.source_name}</td>
                   <td>
                     <Badge
@@ -284,32 +306,31 @@ export function OverviewPage() {
             </tbody>
           </table>
         </div>
-      </Card>
+      </DataPanel>
 
-      <Card>
-        <div className="panel-header">
-          <h3>Recent critical alerts</h3>
-          <Badge variant="critical">top 10</Badge>
-        </div>
-
+      <DataPanel
+        title="Recent critical alerts"
+        badge={<Badge variant="critical">top 10</Badge>}
+        className="scroll-mt-40"
+      >
         {criticalAlertsQuery.isLoading && <p className="muted">Loading alerts...</p>}
 
         {!criticalAlertsQuery.isLoading && (
-          <div className="table-wrap">
+          <div id="critical-alerts-section" className="table-wrap scroll-mt-40">
             <table className="data-table">
-              <thead>
+              <thead className="sticky-table-head">
                 <tr>
-                  <th>Alert</th>
-                  <th>Tenant</th>
-                  <th>Model</th>
-                  <th>Score</th>
-                  <th>Threshold</th>
-                  <th>Created</th>
+                  <th scope="col">Alert</th>
+                  <th scope="col">Tenant</th>
+                  <th scope="col">Model</th>
+                  <th scope="col">Score</th>
+                  <th scope="col">Threshold</th>
+                  <th scope="col">Created</th>
                 </tr>
               </thead>
               <tbody>
                 {(criticalAlertsQuery.data?.items ?? []).map((item) => (
-                  <tr key={item.alert_id}>
+                  <tr key={item.alert_id} className="interactive-row">
                     <td className="mono">{item.alert_id}</td>
                     <td>{item.tenant_id}</td>
                     <td className="mono">
@@ -324,7 +345,7 @@ export function OverviewPage() {
             </table>
           </div>
         )}
-      </Card>
-    </section>
+      </DataPanel>
+    </DashboardPageFrame>
   );
 }

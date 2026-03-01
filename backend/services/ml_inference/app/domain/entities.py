@@ -9,3 +9,5 @@ class LoadedModel:
     metadata: ModelMetadata
     # Stored model instance; type is backend-specific (e.g. TensorFlow model or lightweight numpy-based state).
     model: Any
+    scaler_mean: list[float]
+    scaler_std: list[float]

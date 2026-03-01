@@ -10,10 +10,11 @@ import { fetchEventDetail, fetchEvents } from '../../shared/api/events';
 import { formatDateTime } from '../../shared/lib/time';
 import { Badge } from '../../shared/ui/badge';
 import { Button } from '../../shared/ui/button';
-import { Card } from '../../shared/ui/card';
+import { DataPanel } from '../../shared/ui/DataPanel';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../shared/ui/dialog';
 import { Input } from '../../shared/ui/input';
 import { Select } from '../../shared/ui/select';
+import { DashboardPageFrame } from '../../widgets/layout/DashboardPageFrame';
 
 const statusVariant: Record<string, 'neutral' | 'info' | 'warning' | 'critical' | 'success'> = {
   queued: 'info',
@@ -150,14 +151,17 @@ export function EventsPage() {
   }, [sourceStatusQuery.data]);
 
   return (
-    <section className="stack-lg">
-      <Card>
-        <div className="panel-header">
-          <h2>Events</h2>
-          <span className="muted">Historical ingestion and processing states</span>
+    <DashboardPageFrame
+      chips={
+        <div className="inline-actions">
+          <Badge variant={live.connected ? 'success' : 'critical'}>{live.connected ? 'live' : 'offline'}</Badge>
+          <Badge variant="info">events {eventsQuery.data?.total_estimate ?? 0}</Badge>
+          <Badge variant="neutral">source runs {filteredSourceRuns.length}</Badge>
         </div>
-
-        <div className="filters-grid">
+      }
+    >
+      <DataPanel title="Event lifecycle" description="Historical ingestion and processing states with event-level lookup.">
+        <div className="table-toolbar">
           <Select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="">Status (all)</option>
             <option value="queued">queued</option>
@@ -180,19 +184,23 @@ export function EventsPage() {
 
         <div className="table-wrap">
           <table className="data-table">
-            <thead>
+            <thead className="sticky-table-head">
               <tr>
-                <th>Event ID</th>
-                <th>Tenant</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Source</th>
-                <th>Ingested</th>
+                <th scope="col">Event ID</th>
+                <th scope="col">Tenant</th>
+                <th scope="col">Type</th>
+                <th scope="col">Status</th>
+                <th scope="col">Source</th>
+                <th scope="col">Ingested</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((item) => (
-                <tr key={item.event_id} className="clickable-row" onClick={() => setSelectedEventId(item.event_id)}>
+                <tr
+                  key={item.event_id}
+                  className="clickable-row interactive-row"
+                  onClick={() => setSelectedEventId(item.event_id)}
+                >
                   <td className="mono">{item.event_id}</td>
                   <td>{item.tenant_id}</td>
                   <td>{item.event_type}</td>
@@ -232,24 +240,20 @@ export function EventsPage() {
             </Button>
           </div>
         </div>
-      </Card>
+      </DataPanel>
 
-      <Card>
-        <div className="panel-header">
-          <h3>Internet source update stream</h3>
-          <Badge variant="info">reference_data.updated</Badge>
-        </div>
-        <p className="muted">
-          Internet feeds do not create transaction events directly. They update reference intelligence used during
-          scoring.
-        </p>
+      <DataPanel
+        title="Internet source update stream"
+        description="Internet feeds update reference intelligence used by scoring and enrichment."
+        badge={<Badge variant="info">reference_data.updated</Badge>}
+      >
         {sourceRunsQuery.isError && (
           <p className="inline-warning">
             Unable to load source run stream. Sign in with a tenant-scoped token that includes `connectors:read`.
           </p>
         )}
 
-        <div className="filters-grid">
+        <div className="table-toolbar">
           <Select value={runsWindow} onChange={(event) => setRunsWindow(event.target.value as typeof runsWindow)}>
             <option value="24h">last 24h</option>
             <option value="7d">last 7d</option>
@@ -268,19 +272,19 @@ export function EventsPage() {
 
         <div className="table-wrap">
           <table className="data-table">
-            <thead>
+            <thead className="sticky-table-head">
               <tr>
-                <th>Source</th>
-                <th>Status</th>
-                <th>Fetched</th>
-                <th>Upserted</th>
-                <th>Started</th>
-                <th>Finished</th>
+                <th scope="col">Source</th>
+                <th scope="col">Status</th>
+                <th scope="col">Fetched</th>
+                <th scope="col">Upserted</th>
+                <th scope="col">Started</th>
+                <th scope="col">Finished</th>
               </tr>
             </thead>
             <tbody>
               {filteredSourceRuns.map((run) => (
-                <tr key={run.run_id}>
+                <tr key={run.run_id} className="interactive-row">
                   <td className="mono">
                     {run.source_name}
                     {freshnessBreachSources.has(run.source_name) && (
@@ -309,7 +313,7 @@ export function EventsPage() {
             </tbody>
           </table>
         </div>
-      </Card>
+      </DataPanel>
 
       <Dialog open={Boolean(selectedEventId)} onOpenChange={(open) => !open && setSelectedEventId(null)}>
         <DialogContent>
@@ -320,10 +324,19 @@ export function EventsPage() {
           {eventDetailQuery.isError && <p className="inline-error">Unable to load event detail.</p>}
           {eventDetailQuery.data && (
             <div className="stack-md">
-              <p>
-                {eventDetailQuery.data.tenant_id} · {eventDetailQuery.data.event_type} · {eventDetailQuery.data.status}
-              </p>
-              <p className="mono">Submitted by {eventDetailQuery.data.submitted_by}</p>
+              <div className="grid grid-cols-1 gap-2 rounded-2xl border border-stroke bg-zinc-50 p-3 text-sm sm:grid-cols-2">
+                <p>
+                  Tenant <strong>{eventDetailQuery.data.tenant_id}</strong>
+                </p>
+                <p>
+                  Type <strong>{eventDetailQuery.data.event_type}</strong>
+                </p>
+                <p>
+                  Status <strong>{eventDetailQuery.data.status}</strong>
+                </p>
+                <p className="mono">Submitted by {eventDetailQuery.data.submitted_by}</p>
+              </div>
+
               <pre className="json-block">{JSON.stringify(eventDetailQuery.data.payload, null, 2)}</pre>
 
               <h4>Processing timeline</h4>
@@ -344,6 +357,6 @@ export function EventsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </section>
+    </DashboardPageFrame>
   );
 }

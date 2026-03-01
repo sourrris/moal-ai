@@ -587,3 +587,46 @@ class ModelRepository:
             "inference_latency_ms": {"p50": None, "p95": None},
             "threshold_evolution": [dict(row._mapping) for row in threshold_points],
         }
+
+    @staticmethod
+    async def fetch_training_features(
+        session: AsyncSession,
+        *,
+        tenant_id: str | None,
+        lookback_hours: int,
+        max_samples: int,
+    ) -> list[list[float]]:
+        where_clauses = [
+            "features IS NOT NULL",
+            "array_length(features, 1) IS NOT NULL",
+            "ingested_at >= NOW() - make_interval(hours => :lookback_hours)",
+        ]
+        params: dict[str, object] = {
+            "lookback_hours": int(lookback_hours),
+            "max_samples": int(max_samples),
+        }
+        if tenant_id:
+            where_clauses.append("tenant_id = :tenant_id")
+            params["tenant_id"] = tenant_id
+
+        where_sql = " AND ".join(where_clauses)
+        rows = await session.execute(
+            text(
+                f"""
+                SELECT features
+                FROM events
+                WHERE {where_sql}
+                ORDER BY ingested_at DESC
+                LIMIT :max_samples
+                """
+            ),
+            params,
+        )
+
+        features: list[list[float]] = []
+        for row in rows:
+            raw = row._mapping.get("features")
+            if not raw:
+                continue
+            features.append([float(value) for value in raw])
+        return features

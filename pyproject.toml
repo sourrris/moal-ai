@@ -19,5 +19,10 @@ check_untyped_defs = true
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = [
+    "tests.*",
+    "backend.tests.*",
+    "test_models_training_flow",
+    "test_worker_repository_jsonb",
+]
 disallow_untyped_defs = false
