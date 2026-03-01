@@ -89,6 +89,8 @@ Use this path if Docker is not installed or Docker daemon is unavailable on your
 ./scripts/up-and-open.sh
 ```
 
+`docker compose up -d --build` now runs a one-shot `db-migrate` service first, and backend services wait for it to complete successfully. This applies Alembic migrations automatically on fresh machines.
+
 3. Optional: if you override domains to non-`*.localhost` values in `.env`, add host mappings once:
 
 ```bash
@@ -106,6 +108,13 @@ If Docker is not available (`docker: command not found` or daemon errors), use:
 ```bash
 ./scripts/local/setup.sh
 ./scripts/local/start.sh
+```
+
+If you ever need to run migrations manually, use:
+
+```bash
+cd backend
+DATABASE_URL=postgresql+asyncpg://risk:risk@localhost:5432/risk_monitor ../.venv/bin/alembic -c alembic.ini upgrade head
 ```
 
 ## After Merge: Local Dependency Recovery

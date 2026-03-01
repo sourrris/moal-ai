@@ -107,8 +107,10 @@ jobs:
             exit 1
           fi
           while IFS= read -r dockerfile; do
-            echo "Building image from ${dockerfile}"
-            docker build -f "${dockerfile}" .
+            echo "Building backend image from ${dockerfile} (context: backend)"
+            docker build -f "${dockerfile}" backend
           done <<< "${dockerfiles}"
+          echo "Building migration image from backend/Dockerfile.migrations (context: backend)"
+          docker build -f backend/Dockerfile.migrations backend
           echo "Building image from frontend/dashboard/Dockerfile"
           docker build -f frontend/dashboard/Dockerfile .
