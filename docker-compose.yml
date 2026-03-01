@@ -43,7 +43,7 @@ services:
   ml-inference:
     build:
       context: ./backend
-      dockerfile: services/ml_inference/Dockerfile
+      dockerfile: services/risk/ml/Dockerfile
     container_name: risk-ml-inference
     environment:
       SERVICE_NAME: ml-inference
@@ -71,10 +71,91 @@ services:
       timeout: 5s
       retries: 8
 
+  feature-enrichment:
+    build:
+      context: ./backend
+      dockerfile: services/risk/enrichment/Dockerfile
+    container_name: risk-feature-enrichment
+    environment:
+      SERVICE_NAME: feature-enrichment
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_PORT: 8040
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+      DATA_CONNECTOR_URL: http://data-connector:8030
+    ports:
+      - '8040:8040'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8040/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  data-connector:
+    build:
+      context: ./backend
+      dockerfile: services/risk/connector/Dockerfile
+    container_name: risk-data-connector
+    environment:
+      SERVICE_NAME: data-connector
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_PORT: 8030
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+      OFAC_SLS_URL: ${OFAC_SLS_URL:-https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV}
+      FATF_SOURCE_URL: ${FATF_SOURCE_URL:-https://www.fatf-gafi.org/en/topics/high-risk-and-other-monitored-jurisdictions.html}
+      ECB_FX_URL: ${ECB_FX_URL:-https://data-api.ecb.europa.eu/service/data}
+      CONNECTORS_V2_ENABLED: ${CONNECTORS_V2_ENABLED:-true}
+      RABBITMQ_QUEUE_TYPE: ${RABBITMQ_QUEUE_TYPE:-classic}
+    ports:
+      - '8030:8030'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8030/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  metrics-aggregator:
+    build:
+      context: ./backend
+      dockerfile: services/risk/metrics/Dockerfile
+    container_name: risk-metrics-aggregator
+    environment:
+      SERVICE_NAME: metrics-aggregator
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_PORT: 8050
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+    ports:
+      - '8050:8050'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8050/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
   api-gateway:
     build:
       context: ./backend
-      dockerfile: services/api_gateway/Dockerfile
+      dockerfile: services/risk/api/Dockerfile
     container_name: risk-api-gateway
     environment:
       SERVICE_NAME: api-gateway
@@ -85,6 +166,7 @@ services:
       POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
       ML_INFERENCE_URL: http://ml-inference:8000
+      FEATURE_ENRICHMENT_URL: http://feature-enrichment:8040
     ports:
       - '8000:8000'
     depends_on:
@@ -96,6 +178,8 @@ services:
         condition: service_healthy
       ml-inference:
         condition: service_healthy
+      feature-enrichment:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
       interval: 15s
@@ -105,7 +189,7 @@ services:
   event-worker:
     build:
       context: ./backend
-      dockerfile: services/event_worker/Dockerfile
+      dockerfile: services/risk/worker/Dockerfile
     container_name: risk-event-worker
     environment:
       SERVICE_NAME: event-worker
@@ -116,6 +200,7 @@ services:
       POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
       ML_INFERENCE_URL: http://ml-inference:8000
+      FEATURE_ENRICHMENT_URL: http://feature-enrichment:8040
       MAX_EVENT_RETRIES: 3
     ports:
       - '8010:8010'
@@ -128,6 +213,8 @@ services:
         condition: service_healthy
       ml-inference:
         condition: service_healthy
+      feature-enrichment:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8010/health/live')"]
       interval: 15s
@@ -137,7 +224,7 @@ services:
   notification-service:
     build:
       context: ./backend
-      dockerfile: services/notification_service/Dockerfile
+      dockerfile: services/risk/notification/Dockerfile
     container_name: risk-notification-service
     environment:
       SERVICE_NAME: notification-service

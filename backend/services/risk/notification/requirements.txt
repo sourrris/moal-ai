@@ -1,0 +1,2 @@
+-r ../requirements.base.txt
+redis>=5.2,<6.0

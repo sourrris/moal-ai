@@ -1,0 +1,179 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: aegis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      serviceAccountName: api-gateway-sa
+      containers:
+        - name: api-gateway
+          image: ghcr.io/aegis-ai/api-gateway:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: aegis-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-worker
+  namespace: aegis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: event-worker
+  template:
+    metadata:
+      labels:
+        app: event-worker
+    spec:
+      serviceAccountName: event-worker-sa
+      containers:
+        - name: event-worker
+          image: ghcr.io/aegis-ai/event-worker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: aegis-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-inference
+  namespace: aegis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ml-inference
+  template:
+    metadata:
+      labels:
+        app: ml-inference
+    spec:
+      serviceAccountName: ml-inference-sa
+      containers:
+        - name: ml-inference
+          image: ghcr.io/aegis-ai/ml-inference:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: aegis-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: aegis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      serviceAccountName: notification-service-sa
+      containers:
+        - name: notification-service
+          image: ghcr.io/aegis-ai/notification-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8020
+          envFrom:
+            - secretRef:
+                name: aegis-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-connector
+  namespace: aegis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-connector
+  template:
+    metadata:
+      labels:
+        app: data-connector
+    spec:
+      serviceAccountName: data-connector-sa
+      containers:
+        - name: data-connector
+          image: ghcr.io/aegis-ai/data-connector:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8030
+          envFrom:
+            - secretRef:
+                name: aegis-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-enrichment
+  namespace: aegis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feature-enrichment
+  template:
+    metadata:
+      labels:
+        app: feature-enrichment
+    spec:
+      serviceAccountName: feature-enrichment-sa
+      containers:
+        - name: feature-enrichment
+          image: ghcr.io/aegis-ai/feature-enrichment:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8040
+          envFrom:
+            - secretRef:
+                name: aegis-backend-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-aggregator
+  namespace: aegis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metrics-aggregator
+  template:
+    metadata:
+      labels:
+        app: metrics-aggregator
+    spec:
+      serviceAccountName: metrics-aggregator-sa
+      containers:
+        - name: metrics-aggregator
+          image: ghcr.io/aegis-ai/metrics-aggregator:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8050
+          envFrom:
+            - secretRef:
+                name: aegis-backend-secrets

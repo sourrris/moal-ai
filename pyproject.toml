@@ -8,6 +8,8 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+python_files = ["test_*.py", "*.test.py"]
+addopts = ["--import-mode=importlib"]
 asyncio_mode = "auto"
 
 [tool.mypy]
@@ -19,5 +21,9 @@ check_untyped_defs = true
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = [
+    "tests.*",
+    "backend.tests.*",
+    "risk.*",
+]
 disallow_untyped_defs = false

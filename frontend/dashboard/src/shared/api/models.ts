@@ -1,13 +1,18 @@
 import { z } from 'zod';
 
-import { modelMetricsSchema, modelsListResponseSchema } from '../../entities/models';
+import {
+  modelMetricsSchema,
+  modelTrainingRunsSchema,
+  modelTrainResponseSchema,
+  modelsListResponseSchema
+} from '../../entities/models';
 import { requestJson } from './http';
 
 const metadataSchema = z.object({
   model_name: z.string(),
   model_version: z.string(),
-  feature_dim: z.number(),
-  threshold: z.number(),
+  feature_dim: z.coerce.number(),
+  threshold: z.coerce.number(),
   updated_at: z.string().optional()
 });
 
@@ -23,22 +28,30 @@ export async function trainModel(
   token: string,
   payload: {
     model_name: string;
-    sample_count: number;
-    epochs: number;
-    batch_size: number;
+    tenant_id?: string;
+    lookback_hours?: number;
+    max_samples?: number;
+    min_samples?: number;
+    epochs?: number;
+    batch_size?: number;
+    threshold_quantile?: number;
+    auto_activate?: boolean;
   }
 ) {
-  const samples = Array.from({ length: payload.sample_count }, () =>
-    Array.from({ length: 8 }, () => Number((Math.random() * 2 - 1).toFixed(5)))
-  );
-  return requestJson('/v1/models/train', metadataSchema, {
+  return requestJson('/v1/models/train', modelTrainResponseSchema, {
     method: 'POST',
     token,
     body: {
       model_name: payload.model_name,
-      features: samples,
+      training_source: 'historical_events',
+      tenant_id: payload.tenant_id,
+      lookback_hours: payload.lookback_hours,
+      max_samples: payload.max_samples,
+      min_samples: payload.min_samples,
       epochs: payload.epochs,
-      batch_size: payload.batch_size
+      batch_size: payload.batch_size,
+      threshold_quantile: payload.threshold_quantile,
+      auto_activate: payload.auto_activate ?? false
     }
   });
 }
@@ -51,5 +64,16 @@ export async function activateModel(token: string, modelName: string, modelVersi
       model_name: modelName,
       model_version: modelVersion
     }
+  });
+}
+
+export async function fetchTrainingRuns(token: string, modelName?: string) {
+  return requestJson('/v1/models/training-runs', modelTrainingRunsSchema, {
+    token,
+    query: {
+      model_name: modelName || undefined,
+      limit: 50
+    },
+    retries: 2
   });
 }

@@ -1,12 +1,12 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
-import { AlertsPage } from '../../features/alerts/AlertsPage';
-import { EventsPage } from '../../features/events/EventsPage';
-import { AuthCallbackPage } from '../../features/auth/AuthCallbackPage';
-import { LoginPage } from '../../features/auth/LoginPage';
-import { ModelsPage } from '../../features/models/ModelsPage';
-import { OverviewPage } from '../../features/overview/OverviewPage';
-import { SettingsPage } from '../../features/settings/SettingsPage';
+import { AlertsPage } from '../../features/alert-monitor.content/AlertsPage';
+import { EventsPage } from '../../features/event-stream.content/EventsPage';
+import { AuthCallbackPage } from '../../features/access-auth.content/AuthCallbackPage';
+import { LoginPage } from '../../features/access-auth.content/LoginPage';
+import { ModelsPage } from '../../features/model-management.content/ModelsPage';
+import { OverviewPage } from '../../features/risk-dashboard.content/OverviewPage';
+import { SettingsPage } from '../../features/platform-settings.content/SettingsPage';
 import { AppShell } from '../../widgets/layout/AppShell';
 import { ProtectedRoute } from './ProtectedRoute';
 

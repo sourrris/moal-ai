@@ -6,54 +6,109 @@ on:
     branches: [main, work, "upgrade/**"]
 
 jobs:
-  backend-quality:
+  risk_api_quality_gate:
+    name: risk.api-quality-gate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: risk_monitor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d risk_monitor"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install backend dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e backend/libs/common
-          python -m pip install -r backend/services/api_gateway/requirements.txt
-          python -m pip install -r backend/requirements-dev.txt
-      - name: Lint (ruff)
-        run: ruff check backend/tests
-      - name: Type check (mypy smoke scope)
-        run: mypy backend/tests
-      - name: Test (pytest)
-        run: pytest -q
+          python-version: "3.11"
 
-  frontend-quality:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend/dashboard
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Install deps
-        run: npm install
-      - name: Run tests
-        run: npm test
-      - name: Typecheck + build
-        run: npm run build
+          node-version: "20"
 
-  container-build:
+      - uses: azure/setup-kubectl@v4
+
+      - name: Security scan
+        run: |
+          set -euo pipefail
+          gitleaks_version="8.24.2"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_version}/gitleaks_${gitleaks_version}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --no-git --redact --exit-code 1
+
+      - name: Install backend dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e backend/libs/common
+          requirement_files="$(find backend/services -type f -name requirements.txt | sort)"
+          if [ -z "${requirement_files}" ]; then
+            echo "No backend service requirements files found under backend/services"
+            exit 1
+          fi
+          while IFS= read -r requirement_file; do
+            echo "Installing ${requirement_file}"
+            python -m pip install -r "${requirement_file}"
+          done <<< "${requirement_files}"
+          python -m pip install -r backend/requirements-dev.txt
+
+      - name: Backend quality checks
+        run: |
+          ruff check backend/tests
+          mypy backend/tests
+          pytest -q
+
+      - name: Migration validation
+        run: |
+          cd backend
+          DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/risk_monitor alembic -c alembic.ini upgrade head
+
+      - name: Install frontend dependencies
+        run: npm install --prefix frontend/dashboard
+
+      - name: Frontend quality checks
+        run: |
+          npm test --prefix frontend/dashboard
+          npm run build --prefix frontend/dashboard
+
+      - name: Validate kustomize overlays
+        run: |
+          kubectl kustomize infra/eks/overlays/staging > /dev/null
+          kubectl kustomize infra/eks/overlays/prod > /dev/null
+
+  risk_api_build_gate:
+    name: risk.api-build-gate
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        dockerfile:
-          - backend/services/api_gateway/Dockerfile
-          - backend/services/event_worker/Dockerfile
-          - backend/services/ml_inference/Dockerfile
-          - backend/services/notification_service/Dockerfile
-          - frontend/dashboard/Dockerfile
+    timeout-minutes: 30
+    needs: [risk_api_quality_gate]
     steps:
       - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -f ${{ matrix.dockerfile }} .
+
+      - name: Build service images
+        run: |
+          set -euo pipefail
+          dockerfiles="$(find backend/services -type f -name Dockerfile | sort)"
+          if [ -z "${dockerfiles}" ]; then
+            echo "No backend service Dockerfiles found under backend/services"
+            exit 1
+          fi
+          while IFS= read -r dockerfile; do
+            echo "Building image from ${dockerfile}"
+            docker build -f "${dockerfile}" .
+          done <<< "${dockerfiles}"
+          echo "Building image from frontend/dashboard/Dockerfile"
+          docker build -f frontend/dashboard/Dockerfile .

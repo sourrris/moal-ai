@@ -13,5 +13,6 @@ export const STORAGE_KEYS = {
   tenant: 'risk_tenant',
   window: 'risk_window',
   timezone: 'risk_timezone',
-  theme: 'risk_theme'
+  theme: 'risk_theme',
+  density: 'dashboard_density'
 } as const;

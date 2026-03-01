@@ -9,7 +9,7 @@ if ! command -v brew >/dev/null 2>&1; then
   exit 1
 fi
 
-FORMULAE=(python@3.11 postgresql@16 redis rabbitmq)
+FORMULAE=(python@3.11 postgresql@16 redis rabbitmq nginx)
 MISSING=()
 for formula in "${FORMULAE[@]}"; do
   if ! brew list --versions "$formula" >/dev/null 2>&1; then
@@ -47,22 +47,33 @@ fi
 
 echo "Setting up Python virtual environment..."
 "$PYTHON_BIN" -m venv "$ROOT_DIR/.venv"
+# Ensure pip is available (Homebrew Python venvs sometimes omit it)
+"$ROOT_DIR/.venv/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
 # shellcheck disable=SC1091
 source "$ROOT_DIR/.venv/bin/activate"
-pip install --upgrade pip >/dev/null
-pip install -e "$ROOT_DIR/backend/libs/common" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/api_gateway/requirements.txt" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/event_worker/requirements.txt" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/ml_inference/requirements.txt" >/dev/null
-pip install -r "$ROOT_DIR/backend/services/notification_service/requirements.txt" >/dev/null
-pip install greenlet >/dev/null
+
+PIP="$ROOT_DIR/.venv/bin/pip"
+"$PIP" install --upgrade pip >/dev/null
+"$PIP" install -e "$ROOT_DIR/backend/libs/common" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/api/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/worker/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/ml/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/notification/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/connector/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/metrics/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/enrichment/requirements.txt" >/dev/null
+"$PIP" install alembic >/dev/null
+"$PIP" install greenlet >/dev/null
+
+echo "Applying Alembic migrations..."
+(cd "$ROOT_DIR/backend" && DATABASE_URL="postgresql+asyncpg://risk:risk@localhost:5432/risk_monitor" "$ROOT_DIR/.venv/bin/alembic" -c alembic.ini upgrade head >/dev/null)
 
 echo "Installing frontend dependencies..."
-(cd "$ROOT_DIR/frontend/dashboard" && npm install >/dev/null)
+(cd "$ROOT_DIR/frontend/dashboard" && npm install)
 
 cat > "$ROOT_DIR/frontend/dashboard/.env.local" <<'EOF'
-VITE_API_BASE_URL=http://localhost:8000
-VITE_WS_BASE_URL=http://localhost:8020
+VITE_API_BASE_URL=http://api.localhost
+VITE_WS_BASE_URL=http://ws.localhost
 EOF
 
 echo

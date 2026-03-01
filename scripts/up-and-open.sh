@@ -63,6 +63,9 @@ APP_URL="http://${LOCAL_APP_DOMAIN}"
 API_URL="http://${LOCAL_API_DOMAIN}"
 WS_STATUS_URL="http://${LOCAL_WS_DOMAIN}/v1/notifications/connections"
 RABBITMQ_URL="http://localhost:15672"
+CONNECTOR_URL="http://localhost:8030/v1/connectors/status"
+ENRICHMENT_URL="http://localhost:8040/health/live"
+METRICS_URL="http://localhost:8050/health/live"
 
 wait_for_url() {
   local url="$1"
@@ -110,12 +113,22 @@ fi
 if ! wait_for_url "$RABBITMQ_URL" "RabbitMQ UI"; then
   failures=$((failures + 1))
 fi
+if ! wait_for_url "$CONNECTOR_URL" "Data connector"; then
+  failures=$((failures + 1))
+fi
+if ! wait_for_url "$ENRICHMENT_URL" "Feature enrichment"; then
+  failures=$((failures + 1))
+fi
+if ! wait_for_url "$METRICS_URL" "Metrics aggregator"; then
+  failures=$((failures + 1))
+fi
 
 echo "Opening browser tabs..."
 open_url "$APP_URL"
 open_url "$API_URL/docs"
 open_url "$WS_STATUS_URL"
 open_url "$RABBITMQ_URL"
+open_url "$CONNECTOR_URL"
 
 if [[ "$failures" -gt 0 ]]; then
   echo
