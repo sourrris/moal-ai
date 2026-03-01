@@ -8,6 +8,9 @@ on:
 jobs:
   secrets-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,6 +31,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e backend/libs/common
           python -m pip install -r backend/services/risk/api/requirements.txt
+          python -m pip install -r backend/services/risk/metrics/requirements.txt
           python -m pip install -r backend/requirements-dev.txt
       - name: Lint (ruff)
         run: ruff check backend/tests
