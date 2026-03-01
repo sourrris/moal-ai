@@ -30,6 +30,13 @@ class ModelManagementService:
             return response.json()
 
     @staticmethod
+    async def list_all_models() -> list[dict]:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{settings.ml_inference_url}/v1/models")
+            response.raise_for_status()
+            return response.json()
+
+    @staticmethod
     async def train_model(payload: dict) -> dict:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(f"{settings.ml_inference_url}/v1/models/train", json=payload)

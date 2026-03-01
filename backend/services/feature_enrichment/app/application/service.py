@@ -70,20 +70,7 @@ class FeatureEnrichmentService:
                     }
                 )
             else:
-                connector_started = time.perf_counter()
-                fetched = await FeatureEnrichmentService._lookup_ip_from_connector(payload.source_ip)
-                if fetched:
-                    signals["ip_risk_score"] = float(fetched.get("risk_score") or 0.0)
-                    signals["ip_is_proxy"] = bool(fetched.get("is_proxy") or False)
-                    signals["ip_country"] = fetched.get("country_code")
-                    provenance.append(
-                        {
-                            "source": "ipinfo",
-                            "field": "source_ip",
-                            "cache_hit": False,
-                            "latency_ms": int((time.perf_counter() - connector_started) * 1000),
-                        }
-                    )
+                pass # IP info only from cache if paid sources removed
 
         if payload.card_bin:
             row = await session.execute(
@@ -113,20 +100,7 @@ class FeatureEnrichmentService:
                     }
                 )
             else:
-                connector_started = time.perf_counter()
-                fetched = await FeatureEnrichmentService._lookup_bin_from_connector(payload.card_bin)
-                if fetched:
-                    bin_country = fetched.get("country_code")
-                    if bin_country and payload.source_country and str(bin_country).upper() != payload.source_country.upper():
-                        signals["bin_country_mismatch"] = True
-                    provenance.append(
-                        {
-                            "source": "binlist",
-                            "field": "card_bin",
-                            "cache_hit": False,
-                            "latency_ms": int((time.perf_counter() - connector_started) * 1000),
-                        }
-                    )
+                pass # Bin info only from cache if paid sources removed
 
         jurisdiction = payload.destination_country or payload.source_country
         if jurisdiction:
@@ -239,32 +213,4 @@ class FeatureEnrichmentService:
             "provenance": provenance,
             "enrichment_latency_ms": int((time.perf_counter() - started) * 1000),
         }
-
-    @staticmethod
-    async def _lookup_ip_from_connector(ip: str) -> dict | None:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{settings.data_connector_url.rstrip('/')}/v1/connectors/lookup/ip",
-                params={"ip": ip},
-            )
-            if response.status_code in {404, 503}:
-                return None
-            response.raise_for_status()
-        data = response.json()
-        record = data.get("record") if isinstance(data, dict) else None
-        return record if isinstance(record, dict) else None
-
-    @staticmethod
-    async def _lookup_bin_from_connector(card_bin: str) -> dict | None:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{settings.data_connector_url.rstrip('/')}/v1/connectors/lookup/bin",
-                params={"card_bin": card_bin},
-            )
-            if response.status_code in {404, 503}:
-                return None
-            response.raise_for_status()
-        data = response.json()
-        record = data.get("record") if isinstance(data, dict) else None
-        return record if isinstance(record, dict) else None
 

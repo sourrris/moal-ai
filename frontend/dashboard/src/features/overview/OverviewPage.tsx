@@ -114,6 +114,17 @@ export function OverviewPage() {
   }
 
   const data = metricsQuery.data;
+  const latestLiveMetric = live.metrics[0];
+  
+  // Use live metrics to override static KPI snapshot if available
+  const activeAnomalies = data.active_anomalies;
+  const alertRate = latestLiveMetric?.total_alerts_1m != null 
+    ? latestLiveMetric.total_alerts_1m * 60 
+    : data.alert_rate;
+  const ingestionRate = latestLiveMetric?.total_events_1m != null
+    ? latestLiveMetric.total_events_1m * 60
+    : data.ingestion_rate;
+
   const dataSourceStatuses = dataSourceStatusQuery.data ?? [];
   const dataSourceRuns = dataSourceRunsQuery.data ?? [];
   const series = data.timeseries.map((row) => ({
@@ -133,13 +144,13 @@ export function OverviewPage() {
       </div>
 
       <div className="metrics-grid">
-        <MetricTile label="Active anomalies" value={String(data.active_anomalies)} />
-        <MetricTile label="Alert rate" value={`${data.alert_rate.toFixed(2)} / hr`} />
-        <MetricTile label="Ingestion throughput" value={`${data.ingestion_rate.toFixed(2)} / hr`} />
+        <MetricTile label="Active anomalies" value={String(activeAnomalies)} />
+        <MetricTile label="Alert rate" value={`${alertRate.toFixed(2)} / hr`} />
+        <MetricTile label="Ingestion throughput" value={`${ingestionRate.toFixed(2)} / hr`} />
         <MetricTile label="Model health" value={`${data.model_health.toFixed(1)}%`} />
         <MetricTile
           label="Live risk score"
-          value={live.metrics[0] ? live.metrics[0].risk_score.toFixed(3) : 'n/a'}
+          value={latestLiveMetric ? latestLiveMetric.risk_score.toFixed(3) : 'n/a'}
         />
       </div>
 

@@ -110,26 +110,15 @@ class BaseServiceSettings(BaseSettings):
 
     # Data connector source configuration.
     ofac_sls_url: str = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV"
-    opensanctions_url: str = "https://api.opensanctions.org/match/default"
-    opensanctions_api_key: str = ""
     fatf_source_url: str = "https://www.fatf-gafi.org/en/topics/high-risk-and-other-monitored-jurisdictions.html"
-    ipinfo_base_url: str = "https://ipinfo.io"
-    ipinfo_token: str = ""
-    binlist_base_url: str = "https://lookup.binlist.net"
-    maxmind_download_url: str = ""
-    maxmind_license_key: str = ""
-    maxmind_account_id: str = ""
     ecb_fx_url: str = "https://data-api.ecb.europa.eu/service/data"
-    hibp_base_url: str = "https://haveibeenpwned.com/api/v3"
-    hibp_api_key: str = ""
+    mempool_api_url: str = "https://mempool.space/api"
+    abusech_api_url: str = "https://abuse.ch/api/v1"
     connector_enable_ofac: bool = True
     connector_enable_fatf: bool = True
     connector_enable_ecb: bool = True
-    connector_enable_maxmind: bool = False
-    connector_enable_opensanctions: bool = False
-    connector_enable_ipinfo: bool = False
-    connector_enable_binlist: bool = False
-    connector_enable_hibp: bool = False
+    connector_enable_mempool: bool = True
+    connector_enable_abusech: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

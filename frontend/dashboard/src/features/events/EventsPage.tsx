@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { useAuth } from '../../app/state/auth-context';
+import { useLiveAlertState } from '../../app/state/live-alerts-context';
 import { useUI } from '../../app/state/ui-context';
 import type { DataSourceStatus } from '../../entities/data-sources';
 import { fetchDataSourceRuns, fetchDataSourceStatus } from '../../shared/api/data-sources';
@@ -30,11 +31,12 @@ const connectorStatusVariant: Record<string, 'neutral' | 'info' | 'warning' | 'c
   degraded: 'warning'
 };
 
-const KEY_GATED_OR_PAID_SOURCES = new Set(['maxmind_geolite2', 'opensanctions', 'hibp']);
+const KEY_GATED_OR_PAID_SOURCES = new Set<string>([]);
 
 export function EventsPage() {
   const { token } = useAuth();
   const { tenant, timezone } = useUI();
+  const live = useLiveAlertState();
 
   const [status, setStatus] = useState('');
   const [source, setSource] = useState('');
@@ -63,7 +65,7 @@ export function EventsPage() {
     queryKey: ['events', filters],
     queryFn: async () => fetchEvents(token!, filters),
     enabled: Boolean(token),
-    refetchInterval: 20_000,
+    refetchInterval: live.connected && !live.stale ? 10_000 : 20_000,
     refetchIntervalInBackground: true
   });
 
@@ -77,7 +79,7 @@ export function EventsPage() {
     queryKey: ['internet-source-runs'],
     queryFn: async () => fetchDataSourceRuns(token!, 25),
     enabled: Boolean(token),
-    refetchInterval: 20_000,
+    refetchInterval: live.connected && !live.stale ? 10_000 : 20_000,
     refetchIntervalInBackground: true
   });
 
@@ -85,7 +87,7 @@ export function EventsPage() {
     queryKey: ['internet-source-status'],
     queryFn: async () => fetchDataSourceStatus(token!),
     enabled: Boolean(token),
-    refetchInterval: 20_000,
+    refetchInterval: live.connected && !live.stale ? 10_000 : 20_000,
     refetchIntervalInBackground: true
   });
 

@@ -6,6 +6,8 @@ export const liveMetricSchema = z.object({
   risk_score: z.number(),
   risk_level: z.string(),
   decision_latency_ms: z.number().optional(),
+  total_events_1m: z.number().optional(),
+  total_alerts_1m: z.number().optional(),
   occurred_at: z.string().optional(),
   processed_at: z.union([z.string(), z.number()]).optional()
 });

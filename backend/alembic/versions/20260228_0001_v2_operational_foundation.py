@@ -700,10 +700,7 @@ def upgrade() -> None:
         INSERT INTO event_sources (source_name, source_type, enabled, cadence_seconds)
         VALUES
           ('ofac_sls', 'sanctions', TRUE, 900),
-          ('opensanctions', 'pep_sanctions', TRUE, 3600),
           ('fatf', 'jurisdiction_risk', TRUE, 86400),
-          ('ipinfo', 'ip_intelligence', TRUE, 300),
-          ('binlist', 'bin_intelligence', TRUE, 300),
           ('ecb_fx', 'fx_rates', TRUE, 86400)
         ON CONFLICT (source_name) DO NOTHING
         """

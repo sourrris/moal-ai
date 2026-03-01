@@ -36,11 +36,38 @@ async def list_models(
     active_version = active.get("model_version")
     active_name = active.get("model_name")
 
-    models = await ModelRepository.list_models(session)
-    for item in models:
-        item["active"] = item.get("model_version") == active_version and item.get("model_name") == active_name
+    # Get all models known to ML service
+    try:
+        ml_models = await ModelManagementService.list_all_models()
+    except Exception:  # noqa: BLE001
+        ml_models = []
 
-    return {"active_model": active, "items": models}
+    # Get stats from DB
+    stats_list = await ModelRepository.list_models(session)
+    stats_map = {(s["model_name"], s["model_version"]): s for s in stats_list}
+
+    merged = []
+    for m in ml_models:
+        key = (m["model_name"], m["model_version"])
+        stats = stats_map.get(key, {})
+        merged.append({
+            "model_name": m["model_name"],
+            "model_version": m["model_version"],
+            "threshold": stats.get("threshold") or m.get("threshold"),
+            "updated_at": stats.get("updated_at") or m.get("updated_at"),
+            "inference_count": stats.get("inference_count") or 0,
+            "anomaly_rate": stats.get("anomaly_rate") or 0,
+            "active": m.get("model_version") == active_version and m.get("model_name") == active_name
+        })
+
+    # Add any models that only exist in DB (unlikely but possible)
+    existing_keys = {(m["model_name"], m["model_version"]) for m in merged}
+    for s in stats_list:
+        if (s["model_name"], s["model_version"]) not in existing_keys:
+            s["active"] = s.get("model_version") == active_version and s.get("model_name") == active_name
+            merged.append(s)
+
+    return {"active_model": active, "items": merged}
 
 
 @router.get("/{model_version}/metrics")

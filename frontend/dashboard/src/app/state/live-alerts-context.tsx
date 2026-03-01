@@ -5,6 +5,7 @@ import type { LiveMetric } from '../../entities/metrics';
 import { useLiveAlerts } from '../../shared/hooks/useLiveAlerts';
 import { useAuth } from './auth-context';
 import { useUI } from './ui-context';
+import type { useToast } from '../../shared/ui/toaster';
 
 type LiveAlertsState = {
   connected: boolean;
@@ -15,10 +16,15 @@ type LiveAlertsState = {
 
 const LiveAlertsContext = createContext<LiveAlertsState | null>(null);
 
-export function LiveAlertsProvider({ children }: { children: React.ReactNode }) {
+interface LiveAlertsProviderProps {
+  children: React.ReactNode;
+  toast?: ReturnType<typeof useToast>['toast'];
+}
+
+export function LiveAlertsProvider({ children, toast }: LiveAlertsProviderProps) {
   const { token } = useAuth();
   const { tenant } = useUI();
-  const live = useLiveAlerts(token, tenant);
+  const live = useLiveAlerts(token, tenant, toast);
   return <LiveAlertsContext.Provider value={live}>{children}</LiveAlertsContext.Provider>;
 }
 

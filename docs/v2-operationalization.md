@@ -28,7 +28,6 @@ This repository now includes the foundational v2 operational stack for transacti
 - Connector runtime state:
   - `source_connector_state` tracks per-source cursor/backoff/degraded status
   - `/v1/connectors/*` includes status/runs/errors/enable/disable/run-now + on-demand lookup routes
-  - paid/key-gated connectors (`opensanctions`, `maxmind_geolite2`, `hibp`) are disabled by default
 
 ## Applying migrations
 

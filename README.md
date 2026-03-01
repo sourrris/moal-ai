@@ -12,7 +12,7 @@ Production-grade distributed scaffold for real-time AI risk monitoring with Fast
 - Event Worker: Consumes events, calls ML inference, persists results, emits alerts
 - ML Inference: TensorFlow autoencoder train/infer + model version activation
 - Notification Service: Rabbit alert consumer + Redis Pub/Sub + WebSocket fan-out
-- Data Connector Service: Scheduled internet feed ingestion (OFAC/FATF/OpenSanctions/FX)
+- Data Connector Service: Scheduled internet feed ingestion (OFAC/FATF/FX)
 - Feature Enrichment Service: Risk-context enrichment lookups from cached reference data
 - Metrics Aggregator Service: Continuous 1m/1h metrics rollups + live metrics stream
 - Dashboard: React live monitoring UI
@@ -141,12 +141,6 @@ Connector control endpoints:
 - `POST /v1/connectors/run-now?source_name=...`
 - `POST /v1/connectors/enable?source_name=...`
 - `POST /v1/connectors/disable?source_name=...`
-- `GET /v1/connectors/lookup/ip?ip=...`
-- `GET /v1/connectors/lookup/bin?card_bin=...`
-
-Open-first default:
-- Paid/key-gated sources (`opensanctions`, `maxmind_geolite2`, `hibp`) are disabled by default.
-- Free/core sources (`ofac_sls`, `fatf`, `ecb_fx`) remain enabled.
 - `GET /v2/models/drift`
 - `GET /v2/models/training-runs`
 

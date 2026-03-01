@@ -9,7 +9,7 @@ if ! command -v brew >/dev/null 2>&1; then
   exit 1
 fi
 
-FORMULAE=(python@3.11 postgresql@16 redis rabbitmq)
+FORMULAE=(python@3.11 postgresql@16 redis rabbitmq nginx)
 MISSING=()
 for formula in "${FORMULAE[@]}"; do
   if ! brew list --versions "$formula" >/dev/null 2>&1; then
@@ -72,8 +72,8 @@ echo "Installing frontend dependencies..."
 (cd "$ROOT_DIR/frontend/dashboard" && npm install >/dev/null)
 
 cat > "$ROOT_DIR/frontend/dashboard/.env.local" <<'EOF'
-VITE_API_BASE_URL=http://localhost:8000
-VITE_WS_BASE_URL=http://localhost:8020
+VITE_API_BASE_URL=http://api.localhost
+VITE_WS_BASE_URL=http://ws.localhost
 EOF
 
 echo

@@ -21,6 +21,12 @@ export const wsEnvelopeSchema = z.object({
   data: wsAlertPayloadSchema
 });
 
+export const systemNoticeSchema = z.object({
+  severity: z.enum(['info', 'success', 'warning', 'error']),
+  title: z.string(),
+  message: z.string()
+});
+
 export type WsEnvelope<T> = {
   type: 'ALERT_CREATED' | 'ALERT_V2_CREATED' | 'METRIC_UPDATED' | 'CONNECTION_STATUS' | 'MODEL_SWITCHED' | 'SYSTEM_NOTICE';
   occurred_at: string;

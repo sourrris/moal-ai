@@ -101,6 +101,9 @@ class ModelStore:
             raise RuntimeError("No active model loaded")
         return self.active.metadata
 
+    def list_models(self) -> list[ModelMetadata]:
+        return [ModelMetadata(**m["metadata"]) for m in self.registry["models"].values()]
+
     async def _bootstrap_default_model(self) -> None:
         np.random.seed(7)
         baseline = np.random.normal(0.0, 1.0, size=(512, 8)).astype("float32")

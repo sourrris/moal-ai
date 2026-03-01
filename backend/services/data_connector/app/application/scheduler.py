@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
@@ -189,6 +190,27 @@ class ConnectorScheduler:
                 },
                 headers={"x-schema-version": 2},
             )
+
+            if status in {"success", "partial"}:
+                toast_severity = "success"
+                toast_title = f"{connector.source_name.upper()} Sync Complete"
+                toast_msg = f"Fetched {result.fetched_records}, Upserted {upserts} records."
+                await publish_json(
+                    channel=self.rabbit_channel,
+                    exchange_name=settings.rabbitmq_alerts_exchange,
+                    routing_key=settings.rabbitmq_alerts_routing_key,
+                    payload={
+                        "type": "SYSTEM_NOTICE",
+                        "occurred_at": datetime.now(tz=UTC).isoformat(),
+                        "data": {
+                            "severity": toast_severity,
+                            "title": toast_title,
+                            "message": toast_msg,
+                            "tenant_id": settings.connector_auto_ingest_tenant_id,
+                        }
+                    },
+                )
+
         except Exception as exc:  # noqa: BLE001
             error_code = classify_connector_error(exc)
             logger.exception("connector_run_failed", extra={"source": connector.source_name, "error_code": error_code, "error": str(exc)})
@@ -392,6 +414,55 @@ class ConnectorScheduler:
                 )
                 upserts += 1
 
+        if result.events:
+            await self._ingest_events(result.source_name, result.events)
+
         if upserts == 0:
             upserts = result.upserted_records
         return upserts
+
+    async def _ingest_events(self, source_name: str, events: list[Any]) -> None:
+        if not events:
+            return
+
+        tenant_id = settings.connector_auto_ingest_tenant_id.strip() or "tenant-alpha"
+        token = create_access_token(
+            subject=settings.connector_auto_ingest_subject,
+            secret_key=settings.jwt_secret_key,
+            algorithm=settings.jwt_algorithm,
+            expires_minutes=15,
+            tenant_id=tenant_id,
+            roles=["admin"],
+            scopes=["events:write"],
+        )
+
+        endpoint = f"{settings.api_gateway_url.rstrip('/')}/v2/events/ingest/batch"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Batch in chunks of 100
+        batch_size = 100
+        for i in range(0, len(events), batch_size):
+            chunk = events[i : i + batch_size]
+            payload = {"events": [e.model_dump(mode="json") if hasattr(e, "model_dump") else e for e in chunk]}
+            
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    response = await client.post(endpoint, json=payload, headers=headers)
+                    response.raise_for_status()
+                    
+                body = response.json()
+                logger.info(
+                    "connector_events_ingested",
+                    extra={
+                        "source": source_name,
+                        "batch_size": len(chunk),
+                        "accepted": body.get("accepted"),
+                        "failed": body.get("failed")
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "connector_events_ingestion_failed",
+                    extra={"source": source_name, "error": str(exc)}
+                )
+

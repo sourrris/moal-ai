@@ -1,4 +1,4 @@
-"""disable paid sources by default
+"""empty migration for removed paid sources
 
 Revision ID: 20260228_0003
 Revises: 20260228_0002
@@ -15,38 +15,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
-        UPDATE event_sources
-        SET enabled = FALSE
-        WHERE source_name IN ('opensanctions', 'maxmind_geolite2', 'hibp')
-        """
-    )
-    op.execute(
-        """
-        UPDATE source_connector_state
-        SET enabled = FALSE,
-            next_run_at = NULL,
-            updated_at = NOW()
-        WHERE source_name IN ('opensanctions', 'maxmind_geolite2', 'hibp')
-        """
-    )
+    pass
 
 
 def downgrade() -> None:
-    op.execute(
-        """
-        UPDATE event_sources
-        SET enabled = TRUE
-        WHERE source_name IN ('opensanctions', 'maxmind_geolite2', 'hibp')
-        """
-    )
-    op.execute(
-        """
-        UPDATE source_connector_state
-        SET enabled = TRUE,
-            next_run_at = NOW(),
-            updated_at = NOW()
-        WHERE source_name IN ('opensanctions', 'maxmind_geolite2', 'hibp')
-        """
-    )
+    pass

@@ -30,28 +30,11 @@ def upgrade() -> None:
 
     op.execute(
         """
-        INSERT INTO event_sources (source_name, source_type, enabled, cadence_seconds, freshness_slo_seconds, required_env)
-        VALUES
-          ('maxmind_geolite2', 'ip_intelligence', TRUE, 86400, 108000, 'MAXMIND_LICENSE_KEY'),
-          ('hibp', 'breach_intelligence', FALSE, 86400, 172800, 'HIBP_API_KEY')
-        ON CONFLICT (source_name) DO UPDATE SET
-          source_type = EXCLUDED.source_type,
-          freshness_slo_seconds = EXCLUDED.freshness_slo_seconds,
-          required_env = EXCLUDED.required_env
-        """
-    )
-    op.execute(
-        """
         UPDATE event_sources
         SET freshness_slo_seconds = CASE source_name
             WHEN 'ofac_sls' THEN 1200
-            WHEN 'opensanctions' THEN 7200
             WHEN 'fatf' THEN 93600
-            WHEN 'ipinfo' THEN 600
-            WHEN 'binlist' THEN 600
             WHEN 'ecb_fx' THEN 93600
-            WHEN 'maxmind_geolite2' THEN 108000
-            WHEN 'hibp' THEN 172800
             ELSE GREATEST(cadence_seconds * 2, 600)
         END
         """
@@ -60,11 +43,7 @@ def upgrade() -> None:
         """
         UPDATE event_sources
         SET required_env = CASE source_name
-            WHEN 'opensanctions' THEN 'OPENSANCTIONS_API_KEY'
-            WHEN 'ipinfo' THEN 'IPINFO_TOKEN'
-            WHEN 'binlist' THEN NULL
-            WHEN 'hibp' THEN 'HIBP_API_KEY'
-            WHEN 'maxmind_geolite2' THEN 'MAXMIND_LICENSE_KEY'
+            WHEN 'ofac_sls' THEN NULL
             ELSE required_env
         END
         """
@@ -73,11 +52,7 @@ def upgrade() -> None:
         """
         UPDATE event_sources
         SET enabled = CASE source_name
-            WHEN 'opensanctions' THEN FALSE
-            WHEN 'ipinfo' THEN FALSE
-            WHEN 'binlist' THEN FALSE
-            WHEN 'hibp' THEN FALSE
-            WHEN 'maxmind_geolite2' THEN FALSE
+            WHEN 'ofac_sls' THEN TRUE
             ELSE enabled
         END
         """
@@ -146,4 +121,3 @@ def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS source_connector_state")
     op.execute("ALTER TABLE event_sources DROP COLUMN IF EXISTS required_env")
     op.execute("ALTER TABLE event_sources DROP COLUMN IF EXISTS freshness_slo_seconds")
-    op.execute("DELETE FROM event_sources WHERE source_name IN ('maxmind_geolite2', 'hibp')")

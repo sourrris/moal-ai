@@ -28,7 +28,7 @@ ML_INFERENCE_URL="${ML_INFERENCE_URL:-http://localhost:8001}"
 FEATURE_ENRICHMENT_URL="${FEATURE_ENRICHMENT_URL:-http://localhost:8040}"
 DATA_CONNECTOR_URL="${DATA_CONNECTOR_URL:-http://localhost:8030}"
 API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:8000}"
-CORS_ALLOW_ORIGINS="${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}"
+CORS_ALLOW_ORIGINS="${CORS_ALLOW_ORIGINS:-http://app.localhost,http://localhost:5173,http://127.0.0.1:5173}"
 RABBITMQ_QUEUE_TYPE="${RABBITMQ_QUEUE_TYPE:-classic}"
 MODEL_DIR="${MODEL_DIR:-$ROOT_DIR/.local/models}"
 mkdir -p "$MODEL_DIR"
@@ -71,8 +71,8 @@ start_frontend() {
   (
     cd "$ROOT_DIR/frontend/dashboard"
     nohup env \
-      VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:8000}" \
-      VITE_WS_BASE_URL="${VITE_WS_BASE_URL:-http://localhost:8020}" \
+      VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://api.localhost}" \
+      VITE_WS_BASE_URL="${VITE_WS_BASE_URL:-http://ws.localhost}" \
       npm run dev >>"$log_file" 2>&1 &
     echo $! >"$pid_file"
   )
@@ -118,13 +118,28 @@ wait_for_url "http://localhost:8010/health/live" "Event Worker"
 wait_for_url "http://localhost:8020/health/live" "Notification Service"
 wait_for_url "http://localhost:5173" "Dashboard" 120
 
+# ── Start nginx reverse proxy ───────────────────────────────────
+NGINX_CONF="$ROOT_DIR/infra/reverse-proxy/nginx-local.conf"
+echo "Starting nginx reverse proxy..."
+if command -v nginx >/dev/null 2>&1; then
+  # Stop any previous nginx using our config
+  nginx -c "$NGINX_CONF" -s stop >/dev/null 2>&1 || true
+  sleep 0.5
+  nginx -c "$NGINX_CONF"
+  echo "Ready: nginx (http://app.localhost)"
+else
+  echo "WARNING: nginx not found. Install with: brew install nginx" >&2
+  echo "         Falling back to direct localhost ports." >&2
+fi
+
 echo
 echo "Local dev stack is running."
-echo "Dashboard: http://localhost:5173"
-echo "API Docs:  http://localhost:8000/docs"
+echo "Dashboard:  http://app.localhost"
+echo "API Docs:   http://api.localhost/docs"
+echo "WebSocket:  http://ws.localhost"
 echo "Connectors: http://localhost:8030/v1/connectors/status"
 echo "Enrichment: http://localhost:8040/health/live"
 echo "Metrics:    http://localhost:8050/health/live"
-echo "RabbitMQ:  http://localhost:15672"
-echo "Logs:      $LOG_DIR"
-echo "Stop:      ./scripts/local/stop.sh"
+echo "RabbitMQ:   http://localhost:15672"
+echo "Logs:       $LOG_DIR"
+echo "Stop:       ./scripts/local/stop.sh"

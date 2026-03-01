@@ -108,15 +108,8 @@ services:
       POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
       OFAC_SLS_URL: ${OFAC_SLS_URL:-https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV}
-      OPENSANCTIONS_API_KEY: ${OPENSANCTIONS_API_KEY:-}
-      OPENSANCTIONS_URL: ${OPENSANCTIONS_URL:-https://api.opensanctions.org/match/default}
       FATF_SOURCE_URL: ${FATF_SOURCE_URL:-https://www.fatf-gafi.org/en/topics/high-risk-and-other-monitored-jurisdictions.html}
       ECB_FX_URL: ${ECB_FX_URL:-https://data-api.ecb.europa.eu/service/data}
-      IPINFO_BASE_URL: ${IPINFO_BASE_URL:-https://ipinfo.io}
-      IPINFO_TOKEN: ${IPINFO_TOKEN:-}
-      BINLIST_BASE_URL: ${BINLIST_BASE_URL:-https://lookup.binlist.net}
-      MAXMIND_DOWNLOAD_URL: ${MAXMIND_DOWNLOAD_URL:-}
-      MAXMIND_LICENSE_KEY: ${MAXMIND_LICENSE_KEY:-}
       CONNECTORS_V2_ENABLED: ${CONNECTORS_V2_ENABLED:-true}
       RABBITMQ_QUEUE_TYPE: ${RABBITMQ_QUEUE_TYPE:-classic}
     ports:

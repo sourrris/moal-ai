@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from uuid import UUID
 
@@ -64,7 +65,7 @@ class EventV2Repository:
                     :idempotency_key,
                     :source,
                     :event_type,
-                    :payload,
+                    CAST(:payload AS JSONB),
                     :transaction_amount,
                     :transaction_currency,
                     :source_ip,
@@ -87,7 +88,7 @@ class EventV2Repository:
                 "idempotency_key": event.idempotency_key,
                 "source": event.source,
                 "event_type": event.event_type,
-                "payload": event.transaction.model_dump(mode="json"),
+                "payload": json.dumps(event.transaction.model_dump(mode="json")),
                 "transaction_amount": event.transaction.amount,
                 "transaction_currency": event.transaction.currency,
                 "source_ip": str(event.transaction.source_ip) if event.transaction.source_ip else None,

@@ -20,5 +20,8 @@ class InferenceService:
     async def activate(self, model_name: str, model_version: str) -> ModelMetadata:
         return await self.model_store.activate(model_name=model_name, model_version=model_version)
 
+    def list_models(self) -> list[ModelMetadata]:
+        return self.model_store.list_models()
+
     def get_active(self) -> ModelMetadata:
         return self.model_store.get_active_metadata()

@@ -43,6 +43,12 @@ async def activate_model(payload: ActivateModelRequest, request: Request) -> Mod
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/models", response_model=list[ModelMetadata])
+async def list_models(request: Request) -> list[ModelMetadata]:
+    service = get_service(request)
+    return service.list_models()
+
+
 @router.get("/models/active", response_model=ModelMetadata)
 async def active_model(request: Request) -> ModelMetadata:
     service = get_service(request)

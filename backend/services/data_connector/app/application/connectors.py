@@ -11,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
+from risk_common.schemas_v2 import RiskEventIngestRequest, TransactionPayload
 
 from app.config import get_settings
 
@@ -57,6 +58,7 @@ class ConnectorResult:
     fx_rate_date: date | None = None
     ip_records: list[dict] = field(default_factory=list)
     bin_records: list[dict] = field(default_factory=list)
+    events: list[Any] = field(default_factory=list)
 
 
 class BaseConnector:
@@ -143,44 +145,6 @@ class OfacConnector(BaseConnector):
                 "etag": response.headers.get("etag"),
                 "last_modified": response.headers.get("last-modified"),
             },
-        )
-
-
-class OpenSanctionsConnector(BaseConnector):
-    source_name = "opensanctions"
-    config_enabled = settings.connector_enable_opensanctions
-
-    async def fetch(self, runtime_state: dict | None = None) -> ConnectorResult:
-        if not settings.opensanctions_api_key:
-            return self._disabled_result(self.source_name, "missing OPENSANCTIONS_API_KEY")
-
-        payload = {"queries": ["john doe"], "limit": 50}
-        headers = {"Authorization": f"ApiKey {settings.opensanctions_api_key}"}
-        async with httpx.AsyncClient(timeout=settings.connector_http_timeout_seconds) as client:
-            response = await request_with_retry(client, "POST", settings.opensanctions_url, json=payload, headers=headers)
-            if response.status_code in {401, 403}:
-                return self._disabled_result(self.source_name, "invalid OPENSANCTIONS_API_KEY")
-            response.raise_for_status()
-
-        data = response.json() if response.content else {}
-        results = data.get("results") if isinstance(data, dict) else []
-        pep_names: list[str] = []
-        for item in results if isinstance(results, list) else []:
-            if isinstance(item, dict):
-                caption = item.get("caption") or item.get("name")
-                if caption:
-                    pep_names.append(str(caption)[:200])
-
-        body = response.text
-        return ConnectorResult(
-            source_name=self.source_name,
-            status="success",
-            fetched_records=len(results) if isinstance(results, list) else 0,
-            upserted_records=len(pep_names),
-            checksum=self._checksum(body),
-            version=self._now_version(),
-            details={"mode": "api-match"},
-            pep_names=pep_names,
         )
 
 
@@ -281,168 +245,96 @@ class EcbFxConnector(BaseConnector):
         )
 
 
-class MaxMindConnector(BaseConnector):
-    source_name = "maxmind_geolite2"
-    config_enabled = settings.connector_enable_maxmind
+class MempoolBitcoinConnector(BaseConnector):
+    source_name = "mempool_bitcoin"
+    config_enabled = settings.connector_enable_mempool
 
     async def fetch(self, runtime_state: dict | None = None) -> ConnectorResult:
-        if not settings.maxmind_download_url:
-            return self._disabled_result(self.source_name, "missing MAXMIND_DOWNLOAD_URL")
-        if not settings.maxmind_license_key:
-            return self._disabled_result(self.source_name, "missing MAXMIND_LICENSE_KEY")
-
-        headers = {"Authorization": f"Bearer {settings.maxmind_license_key}"}
+        url = f"{settings.mempool_api_url.rstrip('/')}/mempool/recent"
         async with httpx.AsyncClient(timeout=settings.connector_http_timeout_seconds) as client:
-            response = await request_with_retry(client, "GET", settings.maxmind_download_url, headers=headers)
-            if response.status_code in {401, 403}:
-                return self._disabled_result(self.source_name, "invalid MAXMIND_LICENSE_KEY")
+            response = await request_with_retry(client, "GET", url)
             response.raise_for_status()
 
-        # Seed format: ip,country_code,asn,is_proxy,risk_score
-        body = response.text
-        reader = csv.DictReader(io.StringIO(body))
-        records: list[dict[str, Any]] = []
-        for row in reader:
-            ip_value = str(row.get("ip", "")).strip()
-            if not ip_value:
-                continue
-            risk_raw = row.get("risk_score")
-            risk_value: float | None = None
-            if risk_raw not in {None, ""}:
-                try:
-                    risk_value = float(risk_raw)
-                except ValueError:
-                    risk_value = None
-            is_proxy_value = str(row.get("is_proxy", "")).strip().lower() in {"1", "true", "yes"}
-            records.append(
-                {
-                    "ip": ip_value,
-                    "country_code": str(row.get("country_code", "") or "").upper() or None,
-                    "asn": str(row.get("asn", "") or "").upper() or None,
-                    "is_proxy": is_proxy_value,
-                    "risk_score": risk_value,
-                    "raw": row,
-                }
+        transactions = response.json()
+        events: list[RiskEventIngestRequest] = []
+        for tx in transactions:
+            txid = tx.get("txid")
+            value = tx.get("value", 0)
+            vsize = tx.get("vsize", 0)
+            
+            # Map BTC tx to RiskEvent schema
+            event = RiskEventIngestRequest(
+                idempotency_key=f"btc-{txid}",
+                source="mempool_bitcoin",
+                event_type="crypto_transaction",
+                transaction=TransactionPayload(
+                    transaction_id=txid,
+                    amount=float(value) / 100_000_000.0, # satoshis to BTC
+                    currency="BTC",
+                    metadata={
+                        "vsize": vsize,
+                        "fee": tx.get("fee"),
+                    }
+                ),
+                occurred_at=datetime.now(tz=UTC)
             )
+            events.append(event)
+
+        body = response.text
+        return ConnectorResult(
+            source_name=self.source_name,
+            status="success",
+            fetched_records=len(transactions),
+            upserted_records=len(events),
+            checksum=self._checksum(body),
+            version=self._now_version(),
+            details={"mode": "realtime-mempool"},
+            events=events
+        )
+
+
+class AbuseChIPConnector(BaseConnector):
+    source_name = "abusech_ip"
+    config_enabled = settings.connector_enable_abusech
+
+    async def fetch(self, runtime_state: dict | None = None) -> ConnectorResult:
+        # Fetching the IP blocklist (CSV format)
+        url = "https://abuse.ch/downloads/ipblocklist.csv"
+        async with httpx.AsyncClient(timeout=settings.connector_http_timeout_seconds) as client:
+            response = await request_with_retry(client, "GET", url)
+            response.raise_for_status()
+
+        body = response.text
+        # Skip comment lines starting with #
+        lines = [line for line in body.splitlines() if line and not line.startswith("#")]
+        reader = csv.DictReader(io.StringIO("\n".join(lines)), fieldnames=["first_seen_utc", "dst_ip", "dst_port", "c2_status", "last_online", "threat"])
+        
+        ip_records: list[dict] = []
+        for row in reader:
+            ip_records.append({
+                "ip": row["dst_ip"],
+                "threat": row["threat"],
+                "status": row["c2_status"],
+                "risk_score": 0.95 if row["c2_status"] == "online" else 0.7
+            })
 
         return ConnectorResult(
             source_name=self.source_name,
             status="success",
-            fetched_records=len(records),
-            upserted_records=len(records),
+            fetched_records=len(ip_records),
+            upserted_records=len(ip_records),
             checksum=self._checksum(body),
             version=self._now_version(),
-            details={"mode": "seed-download"},
-            ip_records=records,
-        )
-
-
-class IpinfoConnector(BaseConnector):
-    source_name = "ipinfo"
-    config_enabled = settings.connector_enable_ipinfo
-
-    async def fetch(self, runtime_state: dict | None = None) -> ConnectorResult:
-        if not settings.ipinfo_token:
-            return self._disabled_result(self.source_name, "missing IPINFO_TOKEN")
-        return ConnectorResult(
-            source_name=self.source_name,
-            status="noop",
-            fetched_records=0,
-            upserted_records=0,
-            checksum=self._checksum("ipinfo:on-demand"),
-            version=self._now_version(),
-            details={"mode": "on_demand_lookup"},
-        )
-
-    async def lookup_ip(self, ip: str) -> dict | None:
-        if not settings.ipinfo_token:
-            return None
-        params = {"token": settings.ipinfo_token}
-        async with httpx.AsyncClient(timeout=settings.connector_http_timeout_seconds) as client:
-            response = await request_with_retry(client, "GET", f"{settings.ipinfo_base_url.rstrip('/')}/{ip}/json", params=params)
-            if response.status_code in {401, 403, 404}:
-                return None
-            response.raise_for_status()
-        data = response.json() if response.content else {}
-        if not isinstance(data, dict):
-            return None
-        privacy = data.get("privacy") if isinstance(data.get("privacy"), dict) else {}
-        asn = data.get("org")
-        risk_score = 0.9 if privacy.get("proxy") else 0.35
-        return {
-            "ip": ip,
-            "country_code": (data.get("country") or "").upper() or None,
-            "asn": str(asn)[:32] if asn else None,
-            "is_proxy": bool(privacy.get("proxy")) if privacy else False,
-            "risk_score": risk_score,
-            "raw": data,
-        }
-
-
-class BinlistConnector(BaseConnector):
-    source_name = "binlist"
-    config_enabled = settings.connector_enable_binlist
-
-    async def fetch(self, runtime_state: dict | None = None) -> ConnectorResult:
-        return ConnectorResult(
-            source_name=self.source_name,
-            status="noop",
-            fetched_records=0,
-            upserted_records=0,
-            checksum=self._checksum("binlist:on-demand"),
-            version=self._now_version(),
-            details={"mode": "on_demand_lookup"},
-        )
-
-    async def lookup_bin(self, card_bin: str) -> dict | None:
-        async with httpx.AsyncClient(timeout=settings.connector_http_timeout_seconds) as client:
-            response = await request_with_retry(client, "GET", f"{settings.binlist_base_url.rstrip('/')}/{card_bin}")
-            if response.status_code in {404, 429}:
-                return None
-            response.raise_for_status()
-        data = response.json() if response.content else {}
-        if not isinstance(data, dict):
-            return None
-
-        country = data.get("country") if isinstance(data.get("country"), dict) else {}
-        bank = data.get("bank") if isinstance(data.get("bank"), dict) else {}
-        return {
-            "bin": card_bin,
-            "country_code": (country.get("alpha2") or "").upper() or None,
-            "issuer": bank.get("name"),
-            "card_type": data.get("type"),
-            "card_brand": data.get("scheme"),
-            "prepaid": data.get("prepaid"),
-            "raw": data,
-        }
-
-
-class HibpConnector(BaseConnector):
-    source_name = "hibp"
-    config_enabled = settings.connector_enable_hibp
-
-    async def fetch(self, runtime_state: dict | None = None) -> ConnectorResult:
-        if not settings.hibp_api_key:
-            return self._disabled_result(self.source_name, "missing HIBP_API_KEY")
-        return ConnectorResult(
-            source_name=self.source_name,
-            status="noop",
-            fetched_records=0,
-            upserted_records=0,
-            checksum=self._checksum("hibp:on-demand"),
-            version=self._now_version(),
-            details={"mode": "on_demand_lookup"},
+            details={"mode": "blocklist-download"},
+            ip_records=ip_records
         )
 
 
 def default_connectors() -> list[BaseConnector]:
     return [
         OfacConnector(),
-        OpenSanctionsConnector(),
         FatfConnector(),
         EcbFxConnector(),
-        MaxMindConnector(),
-        IpinfoConnector(),
-        BinlistConnector(),
-        HibpConnector(),
+        MempoolBitcoinConnector(),
+        AbuseChIPConnector(),
     ]

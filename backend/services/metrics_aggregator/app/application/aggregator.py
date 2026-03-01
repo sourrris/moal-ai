@@ -150,11 +150,14 @@ class MetricsAggregator:
             await session.commit()
 
         for metric in metrics_1m:
+            avg_risk = float(metric["avg_risk_score"] or 0.0)
             payload = {
                 "tenant_id": metric["tenant_id"],
-                "risk_score": float(metric["avg_risk_score"] or 0.0),
-                "risk_level": "high" if float(metric["avg_risk_score"] or 0.0) >= 0.65 else "medium",
+                "risk_score": avg_risk,
+                "risk_level": "high" if avg_risk >= 0.65 else "medium",
                 "decision_latency_ms": int(metric["p95_latency"] or 0),
+                "total_events_1m": int(metric["total_events"] or 0),
+                "total_alerts_1m": int(metric["total_alerts"] or 0),
                 "processed_at": datetime.now(tz=UTC).isoformat(),
             }
             await self.redis_client.publish(settings.redis_metrics_channel, json.dumps(payload))

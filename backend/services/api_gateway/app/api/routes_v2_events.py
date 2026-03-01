@@ -1,3 +1,4 @@
+import logging
 from datetime import timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,6 +21,7 @@ from risk_common.schemas_v2 import (
 )
 
 router = APIRouter(prefix="/v2/events", tags=["events-v2"])
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
@@ -45,6 +47,9 @@ async def _ingest_single_event(
     session: AsyncSession,
     channel,
 ) -> EventIngestResult:
+    if payload.occurred_at.tzinfo is None:
+        payload.occurred_at = payload.occurred_at.replace(tzinfo=timezone.utc)
+
     event = RiskEventV2(
         event_id=payload.event_id,
         idempotency_key=payload.idempotency_key,
@@ -131,7 +136,8 @@ async def ingest_event_batch_v2(
             else:
                 failed += 1
             results.append(result)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Batch ingestion failed for event {item.event_id}: {exc}")
             failed += 1
             results.append(EventIngestResult(event_id=item.event_id, status="failed", queued=False))
 

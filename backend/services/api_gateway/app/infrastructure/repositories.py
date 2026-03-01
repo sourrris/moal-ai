@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -143,7 +144,7 @@ class EventRepository:
                 tenant_id=event.tenant_id,
                 source=event.source,
                 event_type=event.event_type,
-                payload=event.payload,
+                payload=json.dumps(event.payload),
                 features=event.features,
                 status="queued",
                 submitted_by=submitted_by,

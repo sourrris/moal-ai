@@ -129,7 +129,8 @@ class EventEnrichmentService:
             )
             if pep_row.first():
                 signals["pep_hit"] = True
-                sources.append("opensanctions")
+                # Only ofac/fatf/etc.
+                pass
 
         if event.transaction.currency.upper() != "USD":
             fx_row = await session.execute(
