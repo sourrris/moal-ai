@@ -6,9 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY backend/libs/common /app/libs/common
-COPY backend/services/risk/metrics/requirements.txt /app/requirements.txt
+COPY backend/services/risk/requirements.base.txt /app/services/risk/requirements.base.txt
+COPY backend/services/risk/metrics/requirements.txt /app/services/risk/metrics/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r /app/requirements.txt \
+    && pip install --no-cache-dir -r /app/services/risk/metrics/requirements.txt \
     && pip install --no-cache-dir -e /app/libs/common
 
 COPY backend/services/risk/metrics /app/service
