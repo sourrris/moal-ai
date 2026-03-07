@@ -8,7 +8,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir "alembic>=1.14,<2.0" "sqlalchemy>=2.0,<3.0" "asyncpg>=0.29,<1.0"
 
-COPY alembic.ini /app/alembic.ini
-COPY alembic /app/alembic
+COPY backend/alembic.ini /app/alembic.ini
+COPY backend/alembic /app/alembic
 
 CMD ["alembic", "-c", "alembic.ini", "upgrade", "head"]

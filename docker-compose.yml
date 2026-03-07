@@ -42,8 +42,8 @@ services:
 
   db-migrate:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.migrations
+      context: .
+      dockerfile: backend/Dockerfile.migrations
     container_name: risk-db-migrate
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
@@ -54,8 +54,8 @@ services:
 
   ml-inference:
     build:
-      context: ./backend
-      dockerfile: services/risk/ml/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/ml/Dockerfile
     container_name: risk-ml-inference
     environment:
       SERVICE_NAME: ml-inference
@@ -87,8 +87,8 @@ services:
 
   feature-enrichment:
     build:
-      context: ./backend
-      dockerfile: services/risk/enrichment/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/enrichment/Dockerfile
     container_name: risk-feature-enrichment
     environment:
       SERVICE_NAME: feature-enrichment
@@ -147,8 +147,8 @@ services:
 
   metrics-aggregator:
     build:
-      context: ./backend
-      dockerfile: services/risk/metrics/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/metrics/Dockerfile
     container_name: risk-metrics-aggregator
     environment:
       SERVICE_NAME: metrics-aggregator
@@ -174,8 +174,8 @@ services:
 
   control-api:
     build:
-      context: ./backend
-      dockerfile: services/risk/control_plane/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/control_plane/Dockerfile
     container_name: risk-control-api
     environment:
       SERVICE_NAME: control-api
@@ -214,8 +214,8 @@ services:
 
   alert-router:
     build:
-      context: ./backend
-      dockerfile: services/risk/alert_router/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/alert_router/Dockerfile
     container_name: risk-alert-router
     environment:
       SERVICE_NAME: alert-router
@@ -287,8 +287,8 @@ services:
 
   event-worker:
     build:
-      context: ./backend
-      dockerfile: services/risk/worker/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/worker/Dockerfile
     container_name: risk-event-worker
     environment:
       SERVICE_NAME: event-worker
@@ -324,8 +324,8 @@ services:
 
   notification-service:
     build:
-      context: ./backend
-      dockerfile: services/risk/notification/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/notification/Dockerfile
     container_name: risk-notification-service
     environment:
       SERVICE_NAME: notification-service

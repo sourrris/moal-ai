@@ -114,11 +114,11 @@ jobs:
             exit 1
           fi
           while IFS= read -r dockerfile; do
-            echo "Building backend image from ${dockerfile} (context: backend)"
-            docker build -f "${dockerfile}" backend
+            echo "Building backend image from ${dockerfile} (context: repo root)"
+            docker build -f "${dockerfile}" .
           done <<< "${dockerfiles}"
-          echo "Building migration image from backend/Dockerfile.migrations (context: backend)"
-          docker build -f backend/Dockerfile.migrations backend
+          echo "Building migration image from backend/Dockerfile.migrations (context: repo root)"
+          docker build -f backend/Dockerfile.migrations .
           echo "Building image from frontend/dashboard/Dockerfile"
           docker build -f frontend/dashboard/Dockerfile .
           echo "Building image from frontend/control-tenant/Dockerfile"

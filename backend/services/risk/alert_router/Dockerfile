@@ -5,14 +5,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY libs/common /app/libs/common
-COPY services/risk/requirements.base.txt /app/services/risk/requirements.base.txt
-COPY services/risk/alert_router/requirements.txt /app/services/risk/alert_router/requirements.txt
+COPY backend/libs/common /app/libs/common
+COPY backend/services/risk/requirements.base.txt /app/services/risk/requirements.base.txt
+COPY backend/services/risk/alert_router/requirements.txt /app/services/risk/alert_router/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r /app/services/risk/alert_router/requirements.txt \
     && pip install --no-cache-dir -e /app/libs/common
 
-COPY services/risk/alert_router /app/service
+COPY backend/services/risk/alert_router /app/service
 WORKDIR /app/service
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8061"]
