@@ -14,14 +14,20 @@ fi
 LOCAL_APP_DOMAIN="${LOCAL_APP_DOMAIN:-app.localhost}"
 LOCAL_API_DOMAIN="${LOCAL_API_DOMAIN:-api.localhost}"
 LOCAL_WS_DOMAIN="${LOCAL_WS_DOMAIN:-ws.localhost}"
+LOCAL_CONTROL_DOMAIN="${LOCAL_CONTROL_DOMAIN:-control.localhost}"
+LOCAL_OPS_CONTROL_DOMAIN="${LOCAL_OPS_CONTROL_DOMAIN:-ops-control.localhost}"
+LOCAL_CONTROL_API_DOMAIN="${LOCAL_CONTROL_API_DOMAIN:-control-api.localhost}"
 
 if [[ "$LOCAL_APP_DOMAIN" == "app.aegis.test" && "$LOCAL_API_DOMAIN" == "api.aegis.test" && "$LOCAL_WS_DOMAIN" == "ws.aegis.test" ]]; then
   echo "Detected legacy *.aegis.test defaults in environment. Using *.localhost for local routing."
   LOCAL_APP_DOMAIN="app.localhost"
   LOCAL_API_DOMAIN="api.localhost"
   LOCAL_WS_DOMAIN="ws.localhost"
+  LOCAL_CONTROL_DOMAIN="control.localhost"
+  LOCAL_OPS_CONTROL_DOMAIN="ops-control.localhost"
+  LOCAL_CONTROL_API_DOMAIN="control-api.localhost"
 fi
-export LOCAL_APP_DOMAIN LOCAL_API_DOMAIN LOCAL_WS_DOMAIN
+export LOCAL_APP_DOMAIN LOCAL_API_DOMAIN LOCAL_WS_DOMAIN LOCAL_CONTROL_DOMAIN LOCAL_OPS_CONTROL_DOMAIN LOCAL_CONTROL_API_DOMAIN
 
 is_localhost_domain() {
   local domain="$1"
@@ -29,7 +35,14 @@ is_localhost_domain() {
 }
 
 ensure_hosts_entry() {
-  local domains=("$LOCAL_APP_DOMAIN" "$LOCAL_API_DOMAIN" "$LOCAL_WS_DOMAIN")
+  local domains=(
+    "$LOCAL_APP_DOMAIN"
+    "$LOCAL_API_DOMAIN"
+    "$LOCAL_WS_DOMAIN"
+    "$LOCAL_CONTROL_DOMAIN"
+    "$LOCAL_OPS_CONTROL_DOMAIN"
+    "$LOCAL_CONTROL_API_DOMAIN"
+  )
   local has_custom_domain=0
 
   for domain in "${domains[@]}"; do
@@ -62,6 +75,9 @@ ensure_hosts_entry
 APP_URL="http://${LOCAL_APP_DOMAIN}"
 API_URL="http://${LOCAL_API_DOMAIN}"
 WS_STATUS_URL="http://${LOCAL_WS_DOMAIN}/v1/notifications/connections"
+CONTROL_URL="http://${LOCAL_CONTROL_DOMAIN}"
+OPS_CONTROL_URL="http://${LOCAL_OPS_CONTROL_DOMAIN}"
+CONTROL_API_URL="http://${LOCAL_CONTROL_API_DOMAIN}"
 RABBITMQ_URL="http://localhost:15672"
 CONNECTOR_URL="http://localhost:8030/v1/connectors/status"
 ENRICHMENT_URL="http://localhost:8040/health/live"
@@ -104,7 +120,16 @@ failures=0
 if ! wait_for_url "$APP_URL" "Dashboard"; then
   failures=$((failures + 1))
 fi
+if ! wait_for_url "$CONTROL_URL" "Tenant Control Console"; then
+  failures=$((failures + 1))
+fi
+if ! wait_for_url "$OPS_CONTROL_URL" "Ops Control Console"; then
+  failures=$((failures + 1))
+fi
 if ! wait_for_url "$API_URL/health/live" "API Gateway health"; then
+  failures=$((failures + 1))
+fi
+if ! wait_for_url "$CONTROL_API_URL/health/live" "Control API health"; then
   failures=$((failures + 1))
 fi
 if ! wait_for_url "$WS_STATUS_URL" "Notification service"; then
@@ -123,19 +148,13 @@ if ! wait_for_url "$METRICS_URL" "Metrics aggregator"; then
   failures=$((failures + 1))
 fi
 
-echo "Opening browser tabs..."
-open_url "$APP_URL"
-open_url "$API_URL/docs"
-open_url "$WS_STATUS_URL"
-open_url "$RABBITMQ_URL"
-open_url "$CONNECTOR_URL"
 
 if [[ "$failures" -gt 0 ]]; then
   echo
   echo "Some endpoints were not reachable during startup checks."
   echo "Quick diagnostics:"
   docker compose ps
-  docker compose logs --tail=60 local-gateway dashboard api-gateway notification-service
+  docker compose logs --tail=60 local-gateway dashboard control-tenant control-ops api-gateway control-api notification-service
 else
   echo "All URLs opened."
 fi

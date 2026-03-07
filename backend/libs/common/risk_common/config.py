@@ -24,6 +24,7 @@ class BaseServiceSettings(BaseSettings):
     rabbitmq_alerts_exchange: str = "risk.alert.exchange"
     rabbitmq_alerts_routing_key: str = "risk.alert.raised"
     rabbitmq_alerts_queue: str = "risk.alert.queue"
+    rabbitmq_alerts_routing_queue: str = "risk.alert.routing.queue"
     rabbitmq_dlx_exchange: str = "risk.dead-letter.exchange"
     rabbitmq_metrics_exchange: str = "risk.metric.exchange"
     rabbitmq_metrics_routing_key: str = "risk.metric.updated"
@@ -41,6 +42,7 @@ class BaseServiceSettings(BaseSettings):
     rabbitmq_alerts_exchange_legacy: str = "risk.alerts.exchange"
     rabbitmq_alerts_routing_key_legacy: str = "risk.alerts.raised"
     rabbitmq_alerts_queue_legacy: str = "risk.alerts.queue"
+    rabbitmq_alerts_routing_queue_legacy: str = "risk.alerts.routing.queue"
     rabbitmq_dlx_exchange_legacy: str = "risk.deadletter.exchange"
     rabbitmq_metrics_exchange_legacy: str = "risk.metrics.exchange"
     rabbitmq_metrics_routing_key_legacy: str = "risk.metrics.updated"
@@ -165,6 +167,13 @@ class BaseServiceSettings(BaseSettings):
     connector_auto_ingest_subject: str = "connector-service"
     connector_auto_ingest_timeout_seconds: int = 10
     tenant_config_enforcement_mode: str = "permissive"
+    control_api_url: str = "http://control-api:8060"
+    alert_router_timeout_seconds: int = 10
+    alert_router_max_attempts: int = 3
+    alert_router_webhook_signing_secret: str = "change-me-alert-router-signing"
+    alert_router_email_smtp_host: str = "localhost"
+    alert_router_email_smtp_port: int = 25
+    alert_router_email_from: str = "no-reply@aegis.local"
     model_activation_min_samples: int = Field(
         default=64,
         validation_alias=AliasChoices("MODEL_ACTIVATION_MIN_SAMPLES", "model_activation_min_samples"),
@@ -314,3 +323,14 @@ class FeatureEnrichmentSettings(BaseServiceSettings):
 class MetricsAggregatorSettings(BaseServiceSettings):
     service_name: str = "metrics-aggregator-service"
     api_port: int = 8050
+
+
+class ControlPlaneSettings(BaseServiceSettings):
+    service_name: str = "control-api"
+    api_port: int = 8060
+    cors_allow_origins: str = "http://control.localhost,http://ops-control.localhost,http://localhost:5174,http://localhost:5175"
+
+
+class AlertRouterSettings(BaseServiceSettings):
+    service_name: str = "alert-router"
+    api_port: int = 8061

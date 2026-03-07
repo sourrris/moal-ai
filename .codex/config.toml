@@ -1,0 +1,7 @@
+[mcp_servers.jcodemunch]
+command = "/Users/sourrrish/Aegis AI/.venv/bin/jcodemunch-mcp"
+args = []
+cwd = "/Users/sourrrish/Aegis AI"
+startup_timeout_sec = 20
+tool_timeout_sec = 120
+enabled = true

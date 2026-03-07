@@ -62,6 +62,8 @@ PIP="$ROOT_DIR/.venv/bin/pip"
 "$PIP" install -r "$ROOT_DIR/backend/services/risk/connector/requirements.txt" >/dev/null
 "$PIP" install -r "$ROOT_DIR/backend/services/risk/metrics/requirements.txt" >/dev/null
 "$PIP" install -r "$ROOT_DIR/backend/services/risk/enrichment/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/control_plane/requirements.txt" >/dev/null
+"$PIP" install -r "$ROOT_DIR/backend/services/risk/alert_router/requirements.txt" >/dev/null
 "$PIP" install alembic >/dev/null
 "$PIP" install greenlet >/dev/null
 
@@ -70,10 +72,25 @@ echo "Applying Alembic migrations..."
 
 echo "Installing frontend dependencies..."
 (cd "$ROOT_DIR/frontend/dashboard" && npm install)
+(cd "$ROOT_DIR/frontend/control-tenant" && npm install)
+(cd "$ROOT_DIR/frontend/control-ops" && npm install)
 
 cat > "$ROOT_DIR/frontend/dashboard/.env.local" <<'EOF'
 VITE_API_BASE_URL=http://api.localhost
 VITE_WS_BASE_URL=http://ws.localhost
+VITE_CONTROL_TENANT_URL=http://control.localhost
+VITE_CONTROL_OPS_URL=http://ops-control.localhost
+EOF
+
+cat > "$ROOT_DIR/frontend/control-tenant/.env.local" <<'EOF'
+VITE_CONTROL_API_BASE_URL=http://control-api.localhost
+VITE_MONITORING_APP_URL=http://app.localhost
+EOF
+
+cat > "$ROOT_DIR/frontend/control-ops/.env.local" <<'EOF'
+VITE_CONTROL_API_BASE_URL=http://control-api.localhost
+VITE_MONITORING_APP_URL=http://app.localhost
+VITE_TENANT_CONSOLE_URL=http://control.localhost
 EOF
 
 echo

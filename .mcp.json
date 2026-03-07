@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "jcodemunch": {
+      "command": "/Users/sourrrish/Aegis AI/.venv/bin/jcodemunch-mcp",
+      "args": []
+    }
+  }
+}

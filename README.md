@@ -201,6 +201,11 @@ docker compose up -d --build
 - Architecture and diagrams: `docs/risk.architecture.md`
 - Folder structure: `docs/engineering.folder-structure.md`
 - V2 operationalization guide: `docs/risk.v2-operationalization.md`
+- jCodeMunch MCP integration: `docs/engineering.mcp-jcodemunch.md`
+
+## MCP
+- Vendored `jcodemunch-mcp` source: `mcp/jcodemunch-mcp`
+- Setup/configuration guide: `docs/engineering.mcp-jcodemunch.md`
 
 ## Key Production Patterns Included
 - Event-driven microservices via RabbitMQ

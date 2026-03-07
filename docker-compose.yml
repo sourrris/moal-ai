@@ -112,8 +112,8 @@ services:
 
   data-connector:
     build:
-      context: ./backend
-      dockerfile: services/risk/connector/Dockerfile
+      context: .
+      dockerfile: backend/services/risk/connector/Dockerfile
     container_name: risk-data-connector
     environment:
       SERVICE_NAME: data-connector
@@ -172,10 +172,87 @@ services:
       timeout: 5s
       retries: 8
 
-  api-gateway:
+  control-api:
     build:
       context: ./backend
-      dockerfile: services/risk/api/Dockerfile
+      dockerfile: services/risk/control_plane/Dockerfile
+    container_name: risk-control-api
+    environment:
+      SERVICE_NAME: control-api
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_PORT: 8060
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+      API_GATEWAY_URL: http://api-gateway:8000
+      DATA_CONNECTOR_URL: http://data-connector:8030
+      ML_INFERENCE_URL: http://ml-inference:8000
+      CORS_ALLOW_ORIGINS: http://${LOCAL_CONTROL_DOMAIN:-control.localhost},http://${LOCAL_OPS_CONTROL_DOMAIN:-ops-control.localhost},http://localhost:5174,http://localhost:5175
+    ports:
+      - '8060:8060'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      data-connector:
+        condition: service_healthy
+      ml-inference:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8060/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  alert-router:
+    build:
+      context: ./backend
+      dockerfile: services/risk/alert_router/Dockerfile
+    container_name: risk-alert-router
+    environment:
+      SERVICE_NAME: alert-router
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_PORT: 8061
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-risk}:${POSTGRES_PASSWORD:-risk}@postgres:5432/${POSTGRES_DB:-risk_monitor}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-prod}
+      ALERT_ROUTER_MAX_ATTEMPTS: ${ALERT_ROUTER_MAX_ATTEMPTS:-3}
+      ALERT_ROUTER_TIMEOUT_SECONDS: ${ALERT_ROUTER_TIMEOUT_SECONDS:-10}
+      ALERT_ROUTER_EMAIL_SMTP_HOST: ${ALERT_ROUTER_EMAIL_SMTP_HOST:-localhost}
+      ALERT_ROUTER_EMAIL_SMTP_PORT: ${ALERT_ROUTER_EMAIL_SMTP_PORT:-25}
+      ALERT_ROUTER_EMAIL_FROM: ${ALERT_ROUTER_EMAIL_FROM:-no-reply@aegis.local}
+    ports:
+      - '8061:8061'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control-api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8061/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: backend/services/risk/api/Dockerfile
     container_name: risk-api-gateway
     environment:
       SERVICE_NAME: api-gateway
@@ -283,12 +360,43 @@ services:
     environment:
       VITE_API_BASE_URL: http://${LOCAL_API_DOMAIN:-api.localhost}
       VITE_WS_BASE_URL: http://${LOCAL_WS_DOMAIN:-ws.localhost}
+      VITE_CONTROL_TENANT_URL: http://${LOCAL_CONTROL_DOMAIN:-control.localhost}
+      VITE_CONTROL_OPS_URL: http://${LOCAL_OPS_CONTROL_DOMAIN:-ops-control.localhost}
     ports:
       - '5173:5173'
     depends_on:
       api-gateway:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+
+  control-tenant:
+    build:
+      context: .
+      dockerfile: frontend/control-tenant/Dockerfile
+    container_name: risk-control-tenant
+    environment:
+      VITE_CONTROL_API_BASE_URL: http://${LOCAL_CONTROL_API_DOMAIN:-control-api.localhost}
+      VITE_MONITORING_APP_URL: http://${LOCAL_APP_DOMAIN:-app.localhost}
+    ports:
+      - '5174:5174'
+    depends_on:
+      control-api:
+        condition: service_healthy
+
+  control-ops:
+    build:
+      context: .
+      dockerfile: frontend/control-ops/Dockerfile
+    container_name: risk-control-ops
+    environment:
+      VITE_CONTROL_API_BASE_URL: http://${LOCAL_CONTROL_API_DOMAIN:-control-api.localhost}
+      VITE_MONITORING_APP_URL: http://${LOCAL_APP_DOMAIN:-app.localhost}
+      VITE_TENANT_CONSOLE_URL: http://${LOCAL_CONTROL_DOMAIN:-control.localhost}
+    ports:
+      - '5175:5175'
+    depends_on:
+      control-api:
         condition: service_healthy
 
   local-gateway:
@@ -298,6 +406,9 @@ services:
       LOCAL_APP_DOMAIN: ${LOCAL_APP_DOMAIN:-app.localhost}
       LOCAL_API_DOMAIN: ${LOCAL_API_DOMAIN:-api.localhost}
       LOCAL_WS_DOMAIN: ${LOCAL_WS_DOMAIN:-ws.localhost}
+      LOCAL_CONTROL_DOMAIN: ${LOCAL_CONTROL_DOMAIN:-control.localhost}
+      LOCAL_OPS_CONTROL_DOMAIN: ${LOCAL_OPS_CONTROL_DOMAIN:-ops-control.localhost}
+      LOCAL_CONTROL_API_DOMAIN: ${LOCAL_CONTROL_API_DOMAIN:-control-api.localhost}
     ports:
       - '80:80'
     volumes:
@@ -305,7 +416,13 @@ services:
     depends_on:
       dashboard:
         condition: service_started
+      control-tenant:
+        condition: service_started
+      control-ops:
+        condition: service_started
       api-gateway:
+        condition: service_healthy
+      control-api:
         condition: service_healthy
       notification-service:
         condition: service_healthy

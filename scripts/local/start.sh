@@ -28,7 +28,8 @@ ML_INFERENCE_URL="${ML_INFERENCE_URL:-http://localhost:8001}"
 FEATURE_ENRICHMENT_URL="${FEATURE_ENRICHMENT_URL:-http://localhost:8040}"
 DATA_CONNECTOR_URL="${DATA_CONNECTOR_URL:-http://localhost:8030}"
 API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:8000}"
-CORS_ALLOW_ORIGINS="${CORS_ALLOW_ORIGINS:-http://app.localhost,http://localhost:5173,http://127.0.0.1:5173}"
+CONTROL_API_URL="${CONTROL_API_URL:-http://localhost:8060}"
+CORS_ALLOW_ORIGINS="${CORS_ALLOW_ORIGINS:-http://app.localhost,http://control.localhost,http://ops-control.localhost,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://localhost:5175}"
 RABBITMQ_QUEUE_TYPE="${RABBITMQ_QUEUE_TYPE:-classic}"
 MODEL_DIR="${MODEL_DIR:-$ROOT_DIR/.local/models}"
 mkdir -p "$MODEL_DIR"
@@ -58,6 +59,7 @@ start_backend() {
       FEATURE_ENRICHMENT_URL="$FEATURE_ENRICHMENT_URL" \
       DATA_CONNECTOR_URL="$DATA_CONNECTOR_URL" \
       API_GATEWAY_URL="$API_GATEWAY_URL" \
+      CONTROL_API_URL="$CONTROL_API_URL" \
       RABBITMQ_QUEUE_TYPE="$RABBITMQ_QUEUE_TYPE" \
       CORS_ALLOW_ORIGINS="$CORS_ALLOW_ORIGINS" \
       "$@" \
@@ -66,17 +68,27 @@ start_backend() {
   )
 }
 
-start_frontend() {
-  local log_file="$LOG_DIR/dashboard.log"
-  local pid_file="$PID_DIR/dashboard.pid"
+start_frontend_app() {
+  local name="$1"
+  local app_dir="$2"
+  local port="$3"
+  local api_base="$4"
+  local ws_base="$5"
+  local monitoring_url="$6"
+  local control_api_base="$7"
+  local log_file="$LOG_DIR/${name}.log"
+  local pid_file="$PID_DIR/${name}.pid"
   : >"$log_file"
   rm -f "$pid_file"
 
   (
-    cd "$ROOT_DIR/frontend/dashboard"
+    cd "$app_dir"
     nohup env \
-      VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://api.localhost}" \
-      VITE_WS_BASE_URL="${VITE_WS_BASE_URL:-http://ws.localhost}" \
+      PORT="$port" \
+      VITE_API_BASE_URL="$api_base" \
+      VITE_WS_BASE_URL="$ws_base" \
+      VITE_MONITORING_APP_URL="$monitoring_url" \
+      VITE_CONTROL_API_BASE_URL="$control_api_base" \
       npm run dev >"$log_file" 2>&1 &
     echo $! >"$pid_file"
   )
@@ -110,16 +122,16 @@ ensure_port_free() {
 }
 
 ensure_frontend_dependencies() {
-  local dashboard_dir="$ROOT_DIR/frontend/dashboard"
-  if [[ ! -d "$dashboard_dir/node_modules" ]]; then
-    echo "Frontend dependencies missing. Installing in $dashboard_dir..."
-    (cd "$dashboard_dir" && npm install)
+  local app_dir="$1"
+  if [[ ! -d "$app_dir/node_modules" ]]; then
+    echo "Frontend dependencies missing. Installing in $app_dir..."
+    (cd "$app_dir" && npm install)
     return 0
   fi
 
-  if ! (cd "$dashboard_dir" && node -e "require.resolve('vite-plugin-pwa/package.json')" >/dev/null 2>&1); then
+  if ! (cd "$app_dir" && node -e "require.resolve('vite/package.json')" >/dev/null 2>&1); then
     echo "Frontend dependencies are out of sync with package.json. Reinstalling..."
-    (cd "$dashboard_dir" && npm install)
+    (cd "$app_dir" && npm install)
   fi
 }
 
@@ -143,11 +155,25 @@ echo "Starting data connector..."
 start_backend "data-connector" "$ROOT_DIR/backend/services/risk/connector" "8030"
 wait_for_url "http://localhost:8030/health/live" "Data Connector"
 
-echo "Starting frontend dashboard..."
-ensure_frontend_dependencies
+echo "Starting control services..."
+start_backend "control-api" "$ROOT_DIR/backend/services/risk/control_plane" "8060"
+start_backend "alert-router" "$ROOT_DIR/backend/services/risk/alert_router" "8061"
+wait_for_url "http://localhost:8060/health/live" "Control API"
+wait_for_url "http://localhost:8061/health/live" "Alert Router"
+
+echo "Starting frontend apps..."
+ensure_frontend_dependencies "$ROOT_DIR/frontend/dashboard"
+ensure_frontend_dependencies "$ROOT_DIR/frontend/control-tenant"
+ensure_frontend_dependencies "$ROOT_DIR/frontend/control-ops"
 ensure_port_free "5173" "dashboard"
-start_frontend
+ensure_port_free "5174" "control-tenant"
+ensure_port_free "5175" "control-ops"
+start_frontend_app "dashboard" "$ROOT_DIR/frontend/dashboard" "5173" "http://api.localhost" "http://ws.localhost" "http://app.localhost" "http://control-api.localhost"
+start_frontend_app "control-tenant" "$ROOT_DIR/frontend/control-tenant" "5174" "http://api.localhost" "http://ws.localhost" "http://app.localhost" "http://control-api.localhost"
+start_frontend_app "control-ops" "$ROOT_DIR/frontend/control-ops" "5175" "http://api.localhost" "http://ws.localhost" "http://app.localhost" "http://control-api.localhost"
 wait_for_url "http://localhost:5173" "Dashboard" 120
+wait_for_url "http://localhost:5174" "Control Tenant Console" 120
+wait_for_url "http://localhost:5175" "Control Ops Console" 120
 
 # ── Start nginx reverse proxy ───────────────────────────────────
 NGINX_CONF="$ROOT_DIR/infra/reverse-proxy/nginx-local.conf"
@@ -166,7 +192,10 @@ fi
 echo
 echo "Local dev stack is running."
 echo "Dashboard:  http://app.localhost"
+echo "Control:    http://control.localhost"
+echo "Ops:        http://ops-control.localhost"
 echo "API Docs:   http://api.localhost/docs"
+echo "Control API:http://control-api.localhost/docs"
 echo "WebSocket:  http://ws.localhost"
 echo "Connectors: http://localhost:8030/v1/connectors/status"
 echo "Enrichment: http://localhost:8040/health/live"

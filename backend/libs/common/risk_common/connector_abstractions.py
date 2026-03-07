@@ -79,12 +79,21 @@ def register_connector(connector_cls: type[BaseConnector]) -> type[BaseConnector
     return connector_registry.register(connector_cls)
 
 
+def _discover_plugin_python_path() -> Path | None:
+    module_path = Path(__file__).resolve()
+    for parent in module_path.parents:
+        candidate = parent / "aegis-connectors" / "python"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def load_connector_from_config(module_paths: str | None) -> list[str]:
     if not module_paths:
         return []
 
-    plugin_python_path = Path(__file__).resolve().parents[4] / "aegis-connectors" / "python"
-    if plugin_python_path.exists():
+    plugin_python_path = _discover_plugin_python_path()
+    if plugin_python_path is not None:
         candidate = str(plugin_python_path)
         if candidate not in sys.path:
             sys.path.append(candidate)

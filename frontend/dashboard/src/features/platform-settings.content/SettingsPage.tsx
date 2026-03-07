@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { useAuth } from '../../app/state/auth-context';
 import { useUI } from '../../app/state/ui-context';
-import { API_BASE_URL, WS_BASE_URL } from '../../shared/lib/constants';
+import { API_BASE_URL, CONTROL_OPS_URL, CONTROL_TENANT_URL, WS_BASE_URL } from '../../shared/lib/constants';
 import { Badge } from '../../shared/ui/badge';
 import { Button } from '../../shared/ui/button';
 import { DataPanel } from '../../shared/ui/DataPanel';
@@ -68,6 +68,17 @@ export function SettingsPage() {
           </div>
         </DataPanel>
       </div>
+
+      <DataPanel title="Control Plane Consoles" description="Open dedicated tenant and operations consoles.">
+        <div className="stack-sm">
+          <a href={CONTROL_TENANT_URL} target="_blank" rel="noreferrer">
+            Open Tenant Control Console
+          </a>
+          <a href={CONTROL_OPS_URL} target="_blank" rel="noreferrer">
+            Open Ops Control Console
+          </a>
+        </div>
+      </DataPanel>
 
       <DataPanel
         title="Keyboard shortcuts"
