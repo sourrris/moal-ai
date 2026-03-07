@@ -1,5 +1,6 @@
 """Regression coverage for the abuse.ch reference connector."""
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ sys.path.append(str(ROOT / "libs" / "common"))
 sys.path.append(str(ROOT / "services" / "risk" / "connector"))
 sys.path.append(str(ROOT.parent / "aegis-connectors" / "python"))
 
-from aegis_connectors import reference_plugins
+reference_plugins = importlib.import_module("aegis_connectors.reference_plugins")
 
 
 @pytest.mark.asyncio
