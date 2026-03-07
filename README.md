@@ -203,10 +203,10 @@ docker compose up -d --build
 - Architecture and diagrams: `docs/risk.architecture.md`
 - Folder structure: `docs/engineering.folder-structure.md`
 - V2 operationalization guide: `docs/risk.v2-operationalization.md`
-- jCodeMunch MCP integration: `docs/engineering.mcp-jcodemunch.md`
+- jCodeMunch MCP setup: `docs/engineering.mcp-jcodemunch.md`
 
 ## MCP
-- Vendored `jcodemunch-mcp` source: `mcp/jcodemunch-mcp`
+- `jcodemunch-mcp` is used as an external MCP dependency, not vendored in this repository.
 - Setup/configuration guide: `docs/engineering.mcp-jcodemunch.md`
 
 ## Key Production Patterns Included
