@@ -106,6 +106,19 @@ async def setup_topology(channel: aio_pika.abc.AbstractChannel, settings) -> Non
     )
     await _declare_and_bind_queue(
         channel,
+        queue_names=_unique(
+            settings.rabbitmq_alerts_routing_queue,
+            settings.rabbitmq_alerts_routing_queue_legacy,
+        ),
+        exchange_names=alerts_exchange_names,
+        routing_keys=_unique(settings.rabbitmq_alerts_routing_key, settings.rabbitmq_alerts_routing_key_legacy),
+        queue_args_by_name={
+            settings.rabbitmq_alerts_routing_queue: queue_args_primary,
+            settings.rabbitmq_alerts_routing_queue_legacy: queue_args_legacy,
+        },
+    )
+    await _declare_and_bind_queue(
+        channel,
         queue_names=_unique(settings.rabbitmq_metrics_queue, settings.rabbitmq_metrics_queue_legacy),
         exchange_names=metrics_exchange_names,
         routing_keys=_unique(settings.rabbitmq_metrics_routing_key, settings.rabbitmq_metrics_routing_key_legacy),

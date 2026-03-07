@@ -8,6 +8,7 @@ type HttpOptions = {
   token?: string;
   query?: Record<string, string | number | undefined | null>;
   body?: unknown;
+  credentials?: RequestCredentials;
   retries?: number;
 };
 
@@ -31,6 +32,7 @@ export async function requestJson<T>(
   while (true) {
     const response = await fetch(url, {
       method,
+      credentials: options.credentials,
       headers: {
         'Content-Type': 'application/json',
         ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})

@@ -6,6 +6,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/state/auth-context';
 import { useLiveAlertState } from '../../app/state/live-alerts-context';
 import { useUI } from '../../app/state/ui-context';
+import { resolveTenantConfig } from '../../config/tenant.config';
 import { ingestSyntheticEvent } from '../../shared/api/alerts';
 import { fetchDataSourceRuns } from '../../shared/api/data-sources';
 import { TENANT_OPTIONS, WINDOW_OPTIONS } from '../../shared/lib/constants';
@@ -17,12 +18,12 @@ import { Input } from '../../shared/ui/input';
 import { Select } from '../../shared/ui/select';
 
 const NAV_ITEMS = [
-  { to: '/overview', label: 'Overview' },
-  { to: '/alerts', label: 'Alerts' },
-  { to: '/events', label: 'Events' },
-  { to: '/models', label: 'Models' },
-  { to: '/settings', label: 'Settings' }
-];
+  { to: '/overview', label: 'Overview', key: 'overview' },
+  { to: '/alerts', label: 'Alerts', key: 'alerts' },
+  { to: '/events', label: 'Events', key: 'events' },
+  { to: '/models', label: 'Models', key: 'models' },
+  { to: '/settings', label: 'Settings', key: 'settings' }
+] as const;
 
 type AutoIngestToast = {
   id: string;
@@ -35,6 +36,8 @@ export function AppShell() {
   const { clearSession, token, username } = useAuth();
   const { tenant, setTenant, window: selectedWindow, setWindow } = useUI();
   const { connected, stale, alerts } = useLiveAlertState();
+  const tenantConfig = resolveTenantConfig(tenant);
+  const navItems = NAV_ITEMS.filter((item) => tenantConfig.features.nav[item.key]);
   const [lastQueuedAck, setLastQueuedAck] = useState<{ eventId: string; queued: boolean; status: string } | null>(
     null
   );
@@ -146,13 +149,13 @@ export function AppShell() {
           <div className="app-topbar-inner">
             <button className="brand-chip" type="button" onClick={() => navigate('/overview')}>
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-[11px] font-bold text-white">
-                AR
+                {tenantConfig.branding.badgeText}
               </span>
-              <span>Aegis Risk</span>
+              <span>{tenantConfig.branding.appName}</span>
             </button>
 
             <nav className="top-nav-links" aria-label="Primary">
-              {NAV_ITEMS.map(({ to, label }) => (
+              {navItems.map(({ to, label }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -183,7 +186,7 @@ export function AppShell() {
 
           <div className="app-topbar-mobile-row">
             <nav className="mobile-nav" aria-label="Primary mobile">
-              {NAV_ITEMS.map(({ to, label }) => (
+              {navItems.map(({ to, label }) => (
                 <NavLink
                   key={to}
                   to={to}

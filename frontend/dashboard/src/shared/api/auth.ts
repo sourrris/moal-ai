@@ -13,6 +13,7 @@ export async function login(username: string, password: string) {
     tokenResponseSchema,
     {
       method: 'POST',
+      credentials: 'include',
       body: { username, password }
     }
   );

@@ -5,13 +5,23 @@ HOSTS_FILE="/etc/hosts"
 LOCAL_APP_DOMAIN="${LOCAL_APP_DOMAIN:-app.localhost}"
 LOCAL_API_DOMAIN="${LOCAL_API_DOMAIN:-api.localhost}"
 LOCAL_WS_DOMAIN="${LOCAL_WS_DOMAIN:-ws.localhost}"
+LOCAL_CONTROL_DOMAIN="${LOCAL_CONTROL_DOMAIN:-control.localhost}"
+LOCAL_OPS_CONTROL_DOMAIN="${LOCAL_OPS_CONTROL_DOMAIN:-ops-control.localhost}"
+LOCAL_CONTROL_API_DOMAIN="${LOCAL_CONTROL_API_DOMAIN:-control-api.localhost}"
 
 is_localhost_domain() {
   local domain="$1"
   [[ "$domain" == "localhost" || "$domain" == *.localhost ]]
 }
 
-domains=("$LOCAL_APP_DOMAIN" "$LOCAL_API_DOMAIN" "$LOCAL_WS_DOMAIN")
+domains=(
+  "$LOCAL_APP_DOMAIN"
+  "$LOCAL_API_DOMAIN"
+  "$LOCAL_WS_DOMAIN"
+  "$LOCAL_CONTROL_DOMAIN"
+  "$LOCAL_OPS_CONTROL_DOMAIN"
+  "$LOCAL_CONTROL_API_DOMAIN"
+)
 missing_domains=()
 
 for domain in "${domains[@]}"; do

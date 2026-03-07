@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Request
 
 from app.application.model_inference_service import InferenceService
+from app.application.standardized_pipeline import StandardizedInferenceRequest
 from app.infrastructure.model_store import ModelActivationError
 from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainingResult, ModelTrainRequest
 
@@ -22,6 +23,15 @@ async def infer(payload: InferenceRequest, request: Request) -> InferenceRespons
     service = get_service(request)
     try:
         return await service.infer(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/infer/standardized", response_model=InferenceResponse)
+async def infer_standardized(payload: StandardizedInferenceRequest, request: Request) -> InferenceResponse:
+    service = get_service(request)
+    try:
+        return await service.infer_standardized(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

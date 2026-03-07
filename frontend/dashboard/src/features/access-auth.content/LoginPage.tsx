@@ -1,26 +1,39 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../../app/state/auth-context';
 import { login } from '../../shared/api/auth';
 import { API_BASE_URL } from '../../shared/lib/constants';
+import { buildConsoleHandoffUrl } from '../../shared/lib/control-handoff';
 import { AmbientBackground } from '../../shared/ui/AmbientBackground';
 import { Button } from '../../shared/ui/button';
 import { Card } from '../../shared/ui/card';
 import { Input } from '../../shared/ui/input';
 
 export function LoginPage() {
-  const { token, setSession } = useAuth();
+  const { token, username: currentUsername, setSession } = useAuth();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
+  const [params] = useSearchParams();
+  const returnTo = params.get('returnTo');
 
   const mutation = useMutation({
     mutationFn: async () => login(username, password),
-    onSuccess: (result) => setSession(result.access_token, username)
+    onSuccess: (result) => {
+      setSession(result.access_token, username);
+      if (returnTo) {
+        window.location.assign(buildConsoleHandoffUrl(returnTo, result.access_token, username));
+      }
+    }
   });
 
-  if (token) {
+  if (token && returnTo) {
+    window.location.replace(buildConsoleHandoffUrl(returnTo, token, currentUsername));
+    return null;
+  }
+
+  if (token && !returnTo) {
     return <Navigate to="/overview" replace />;
   }
 

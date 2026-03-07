@@ -1,5 +1,7 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://api.localhost';
 export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL ?? 'http://ws.localhost';
+export const CONTROL_TENANT_URL = import.meta.env.VITE_CONTROL_TENANT_URL ?? 'http://control.localhost';
+export const CONTROL_OPS_URL = import.meta.env.VITE_CONTROL_OPS_URL ?? 'http://ops-control.localhost';
 
 export const TENANT_OPTIONS = ['all', 'tenant-alpha', 'tenant-beta'] as const;
 export type TenantOption = (typeof TENANT_OPTIONS)[number];

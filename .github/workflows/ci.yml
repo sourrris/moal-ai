@@ -78,12 +78,19 @@ jobs:
           DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/risk_monitor alembic -c alembic.ini upgrade head
 
       - name: Install frontend dependencies
-        run: npm install --prefix frontend/dashboard
+        run: |
+          npm install --prefix frontend/dashboard
+          npm install --prefix frontend/control-tenant
+          npm install --prefix frontend/control-ops
 
       - name: Frontend quality checks
         run: |
           npm test --prefix frontend/dashboard
           npm run build --prefix frontend/dashboard
+          npm run lint --prefix frontend/control-tenant
+          npm run build --prefix frontend/control-tenant
+          npm run lint --prefix frontend/control-ops
+          npm run build --prefix frontend/control-ops
 
       - name: Validate kustomize overlays
         run: |
@@ -107,10 +114,14 @@ jobs:
             exit 1
           fi
           while IFS= read -r dockerfile; do
-            echo "Building backend image from ${dockerfile} (context: backend)"
-            docker build -f "${dockerfile}" backend
+            echo "Building backend image from ${dockerfile} (context: repo root)"
+            docker build -f "${dockerfile}" .
           done <<< "${dockerfiles}"
-          echo "Building migration image from backend/Dockerfile.migrations (context: backend)"
-          docker build -f backend/Dockerfile.migrations backend
+          echo "Building migration image from backend/Dockerfile.migrations (context: repo root)"
+          docker build -f backend/Dockerfile.migrations .
           echo "Building image from frontend/dashboard/Dockerfile"
           docker build -f frontend/dashboard/Dockerfile .
+          echo "Building image from frontend/control-tenant/Dockerfile"
+          docker build -f frontend/control-tenant/Dockerfile .
+          echo "Building image from frontend/control-ops/Dockerfile"
+          docker build -f frontend/control-ops/Dockerfile .

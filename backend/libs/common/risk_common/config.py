@@ -24,6 +24,7 @@ class BaseServiceSettings(BaseSettings):
     rabbitmq_alerts_exchange: str = "risk.alert.exchange"
     rabbitmq_alerts_routing_key: str = "risk.alert.raised"
     rabbitmq_alerts_queue: str = "risk.alert.queue"
+    rabbitmq_alerts_routing_queue: str = "risk.alert.routing.queue"
     rabbitmq_dlx_exchange: str = "risk.dead-letter.exchange"
     rabbitmq_metrics_exchange: str = "risk.metric.exchange"
     rabbitmq_metrics_routing_key: str = "risk.metric.updated"
@@ -41,6 +42,7 @@ class BaseServiceSettings(BaseSettings):
     rabbitmq_alerts_exchange_legacy: str = "risk.alerts.exchange"
     rabbitmq_alerts_routing_key_legacy: str = "risk.alerts.raised"
     rabbitmq_alerts_queue_legacy: str = "risk.alerts.queue"
+    rabbitmq_alerts_routing_queue_legacy: str = "risk.alerts.routing.queue"
     rabbitmq_dlx_exchange_legacy: str = "risk.deadletter.exchange"
     rabbitmq_metrics_exchange_legacy: str = "risk.metrics.exchange"
     rabbitmq_metrics_routing_key_legacy: str = "risk.metrics.updated"
@@ -157,10 +159,21 @@ class BaseServiceSettings(BaseSettings):
     connector_backoff_max_seconds: int = 1800
     connector_circuit_breaker_failures: int = 5
     connector_jitter_seconds: int = 15
+    connector_reference_modules: str = "aegis_connectors.reference_plugins"
+    connector_ingest_modules: str = "aegis_connectors.ingest_plugins"
+    connector_source_route_map_json: str = "{}"
     connector_auto_ingest_on_reference_update: bool = True
     connector_auto_ingest_tenant_id: str = "tenant-alpha"
     connector_auto_ingest_subject: str = "connector-service"
     connector_auto_ingest_timeout_seconds: int = 10
+    tenant_config_enforcement_mode: str = "permissive"
+    control_api_url: str = "http://control-api:8060"
+    alert_router_timeout_seconds: int = 10
+    alert_router_max_attempts: int = 3
+    alert_router_webhook_signing_secret: str = "change-me-alert-router-signing"
+    alert_router_email_smtp_host: str = "localhost"
+    alert_router_email_smtp_port: int = 25
+    alert_router_email_from: str = "no-reply@aegis.local"
     model_activation_min_samples: int = Field(
         default=64,
         validation_alias=AliasChoices("MODEL_ACTIVATION_MIN_SAMPLES", "model_activation_min_samples"),
@@ -183,10 +196,11 @@ class BaseServiceSettings(BaseSettings):
 
     # Data connector source configuration.
     ofac_sls_url: str = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV"
-    fatf_source_url: str = "https://www.fatf-gafi.org/en/topics/high-risk-and-other-monitored-jurisdictions.html"
+    fatf_source_url: str = "https://www.fatf-gafi.org/en/countries/black-and-grey-lists.html"
     ecb_fx_url: str = "https://data-api.ecb.europa.eu/service/data"
     mempool_api_url: str = "https://mempool.space/api"
     abusech_api_url: str = "https://abuse.ch/api/v1"
+    abusech_ip_blocklist_url: str = "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt"
     connector_enable_ofac: bool = True
     connector_enable_fatf: bool = True
     connector_enable_ecb: bool = True
@@ -310,3 +324,14 @@ class FeatureEnrichmentSettings(BaseServiceSettings):
 class MetricsAggregatorSettings(BaseServiceSettings):
     service_name: str = "metrics-aggregator-service"
     api_port: int = 8050
+
+
+class ControlPlaneSettings(BaseServiceSettings):
+    service_name: str = "control-api"
+    api_port: int = 8060
+    cors_allow_origins: str = "http://control.localhost,http://ops-control.localhost,http://localhost:5174,http://localhost:5175"
+
+
+class AlertRouterSettings(BaseServiceSettings):
+    service_name: str = "alert-router"
+    api_port: int = 8061

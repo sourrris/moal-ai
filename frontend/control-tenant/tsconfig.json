@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["vite/client", "react", "react-dom"]
+  },
+  "include": [
+    "src",
+    "../packages/control-api-client/src",
+    "../packages/control-auth/src",
+    "../packages/control-ui/src"
+  ]
+}

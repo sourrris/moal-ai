@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, Pie, PieChart, ResponsiveContainer, Too
 import { useAuth } from '../../app/state/auth-context';
 import { useLiveAlertState } from '../../app/state/live-alerts-context';
 import { useUI } from '../../app/state/ui-context';
+import { resolveTenantConfig } from '../../config/tenant.config';
 import { fetchAlerts } from '../../shared/api/alerts';
 import { fetchDataSourceRuns, fetchDataSourceStatus } from '../../shared/api/data-sources';
 import { fetchOverviewMetrics } from '../../shared/api/overview';
@@ -68,6 +69,7 @@ function scrollToSection(id: string) {
 export function OverviewPage() {
   const { token } = useAuth();
   const { tenant, window, timezone } = useUI();
+  const tenantConfig = resolveTenantConfig(tenant);
   const live = useLiveAlertState();
 
   const metricsQuery = useQuery({
@@ -124,6 +126,7 @@ export function OverviewPage() {
 
   const dataSourceStatuses = dataSourceStatusQuery.data ?? [];
   const dataSourceRuns = dataSourceRunsQuery.data ?? [];
+  const widgets = tenantConfig.features.widgets;
   const series = data.timeseries.map((row) => ({
     time: formatDateTime(row.bucket, timezone),
     score: Number((row.avg_score ?? 0).toFixed(4)),
@@ -180,172 +183,184 @@ export function OverviewPage() {
         />
       </div>
 
-      <div id="trend-section" className="grid-two scroll-mt-40">
-        <DataPanel title="Anomaly score vs threshold" description="Trendline for anomaly score, threshold, and volume context.">
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={series}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-              <XAxis dataKey="time" hide />
-              <YAxis width={56} />
-              <Tooltip
-                contentStyle={{ borderRadius: 12, borderColor: '#e4e4e7', fontSize: 12 }}
-                labelStyle={{ fontWeight: 600 }}
-              />
-              <Area type="monotone" dataKey="score" stroke="var(--accent)" fill="rgba(37,99,235,0.18)" />
-              <Area type="monotone" dataKey="threshold" stroke="var(--status-warning)" fill="rgba(217,119,6,0.14)" />
-            </AreaChart>
-          </ResponsiveContainer>
+      {(widgets.trend || widgets.severity) && (
+        <div id="trend-section" className="grid-two scroll-mt-40">
+          {widgets.trend && (
+            <DataPanel title="Anomaly score vs threshold" description="Trendline for anomaly score, threshold, and volume context.">
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={series}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                  <XAxis dataKey="time" hide />
+                  <YAxis width={56} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, borderColor: '#e4e4e7', fontSize: 12 }}
+                    labelStyle={{ fontWeight: 600 }}
+                  />
+                  <Area type="monotone" dataKey="score" stroke="var(--accent)" fill="rgba(37,99,235,0.18)" />
+                  <Area type="monotone" dataKey="threshold" stroke="var(--status-warning)" fill="rgba(217,119,6,0.14)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </DataPanel>
+          )}
+
+          {widgets.severity && (
+            <DataPanel title="Severity distribution" description="Current anomaly severity mix for active time window.">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={data.severity_distribution} dataKey="count" nameKey="severity" outerRadius={96} />
+                  <Tooltip contentStyle={{ borderRadius: 12, borderColor: '#e4e4e7', fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </DataPanel>
+          )}
+        </div>
+      )}
+
+      {widgets.sourceStatus && (
+        <DataPanel
+          title="Internet feed activity"
+          description="Successful source runs publish reference intelligence used for enrichment and scoring."
+          badge={<Badge variant="info">{dataSourceStatuses.length} sources</Badge>}
+          className="scroll-mt-40"
+        >
+          {dataSourceStatusQuery.isError && (
+            <p className="inline-warning">
+              Unable to read connector status. If you see 401 for v2 endpoints, sign out and sign in again to refresh a
+              tenant-scoped token.
+            </p>
+          )}
+
+          {!dataSourceStatusQuery.isError && (
+            <div id="sources-section" className="table-wrap scroll-mt-40">
+              <table className="data-table">
+                <thead className="sticky-table-head">
+                  <tr>
+                    <th scope="col">Source</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Latest run</th>
+                    <th scope="col">Freshness</th>
+                    <th scope="col">Failures</th>
+                    <th scope="col">Next run</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dataSourceStatuses.map((source) => (
+                    <tr key={source.source_name} className="interactive-row">
+                      <td className="mono">{source.source_name}</td>
+                      <td>
+                        <Badge
+                          variant={sourceStatusBadge(
+                            source.enabled,
+                            source.latest_status,
+                            source.consecutive_failures,
+                            source.freshness_seconds,
+                            source.freshness_slo_seconds
+                          )}
+                        >
+                          {source.enabled ? source.latest_status ?? 'idle' : 'disabled'}
+                        </Badge>
+                      </td>
+                      <td>{source.last_success_at ? formatDateTime(source.last_success_at, timezone) : 'n/a'}</td>
+                      <td>
+                        {formatDuration(source.freshness_seconds)}
+                        {source.freshness_slo_seconds ? ` / slo ${formatDuration(source.freshness_slo_seconds)}` : ''}
+                      </td>
+                      <td>{source.consecutive_failures}</td>
+                      <td>{source.next_run_at ? formatDateTime(source.next_run_at, timezone) : 'n/a'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </DataPanel>
+      )}
 
-        <DataPanel title="Severity distribution" description="Current anomaly severity mix for active time window.">
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie data={data.severity_distribution} dataKey="count" nameKey="severity" outerRadius={96} />
-              <Tooltip contentStyle={{ borderRadius: 12, borderColor: '#e4e4e7', fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </DataPanel>
-      </div>
-
-      <DataPanel
-        title="Internet feed activity"
-        description="Successful source runs publish reference intelligence used for enrichment and scoring."
-        badge={<Badge variant="info">{dataSourceStatuses.length} sources</Badge>}
-        className="scroll-mt-40"
-      >
-        {dataSourceStatusQuery.isError && (
-          <p className="inline-warning">
-            Unable to read connector status. If you see 401 for v2 endpoints, sign out and sign in again to refresh a
-            tenant-scoped token.
-          </p>
-        )}
-
-        {!dataSourceStatusQuery.isError && (
-          <div id="sources-section" className="table-wrap scroll-mt-40">
+      {widgets.connectorRuns && (
+        <DataPanel title="Latest connector runs" badge={<Badge variant="neutral">{dataSourceRuns.length} rows</Badge>}>
+          <div className="table-wrap">
             <table className="data-table">
               <thead className="sticky-table-head">
                 <tr>
                   <th scope="col">Source</th>
-                  <th scope="col">State</th>
-                  <th scope="col">Latest run</th>
-                  <th scope="col">Freshness</th>
-                  <th scope="col">Failures</th>
-                  <th scope="col">Next run</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Fetched</th>
+                  <th scope="col">Upserted</th>
+                  <th scope="col">Started</th>
+                  <th scope="col">Finished</th>
                 </tr>
               </thead>
               <tbody>
-                {dataSourceStatuses.map((source) => (
-                  <tr key={source.source_name} className="interactive-row">
-                    <td className="mono">{source.source_name}</td>
+                {dataSourceRuns.map((run) => (
+                  <tr key={run.run_id} className="interactive-row">
+                    <td className="mono">{run.source_name}</td>
                     <td>
                       <Badge
-                        variant={sourceStatusBadge(
-                          source.enabled,
-                          source.latest_status,
-                          source.consecutive_failures,
-                          source.freshness_seconds,
-                          source.freshness_slo_seconds
-                        )}
+                        variant={
+                          run.status === 'failed'
+                            ? 'critical'
+                            : run.status === 'degraded'
+                              ? 'warning'
+                              : run.status === 'success' || run.status === 'noop' || run.status === 'partial'
+                                ? 'success'
+                                : 'info'
+                        }
                       >
-                        {source.enabled ? source.latest_status ?? 'idle' : 'disabled'}
+                        {run.status}
                       </Badge>
                     </td>
-                    <td>{source.last_success_at ? formatDateTime(source.last_success_at, timezone) : 'n/a'}</td>
-                    <td>
-                      {formatDuration(source.freshness_seconds)}
-                      {source.freshness_slo_seconds ? ` / slo ${formatDuration(source.freshness_slo_seconds)}` : ''}
-                    </td>
-                    <td>{source.consecutive_failures}</td>
-                    <td>{source.next_run_at ? formatDateTime(source.next_run_at, timezone) : 'n/a'}</td>
+                    <td>{run.fetched_records}</td>
+                    <td>{run.upserted_records}</td>
+                    <td>{formatDateTime(run.started_at, timezone)}</td>
+                    <td>{run.finished_at ? formatDateTime(run.finished_at, timezone) : 'running'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-      </DataPanel>
+        </DataPanel>
+      )}
 
-      <DataPanel title="Latest connector runs" badge={<Badge variant="neutral">{dataSourceRuns.length} rows</Badge>}>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead className="sticky-table-head">
-              <tr>
-                <th scope="col">Source</th>
-                <th scope="col">Status</th>
-                <th scope="col">Fetched</th>
-                <th scope="col">Upserted</th>
-                <th scope="col">Started</th>
-                <th scope="col">Finished</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dataSourceRuns.map((run) => (
-                <tr key={run.run_id} className="interactive-row">
-                  <td className="mono">{run.source_name}</td>
-                  <td>
-                    <Badge
-                      variant={
-                        run.status === 'failed'
-                          ? 'critical'
-                          : run.status === 'degraded'
-                            ? 'warning'
-                            : run.status === 'success' || run.status === 'noop' || run.status === 'partial'
-                              ? 'success'
-                              : 'info'
-                      }
-                    >
-                      {run.status}
-                    </Badge>
-                  </td>
-                  <td>{run.fetched_records}</td>
-                  <td>{run.upserted_records}</td>
-                  <td>{formatDateTime(run.started_at, timezone)}</td>
-                  <td>{run.finished_at ? formatDateTime(run.finished_at, timezone) : 'running'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </DataPanel>
+      {widgets.criticalAlerts && (
+        <DataPanel
+          title="Recent critical alerts"
+          badge={<Badge variant="critical">top 10</Badge>}
+          className="scroll-mt-40"
+        >
+          {criticalAlertsQuery.isLoading && <p className="muted">Loading alerts...</p>}
 
-      <DataPanel
-        title="Recent critical alerts"
-        badge={<Badge variant="critical">top 10</Badge>}
-        className="scroll-mt-40"
-      >
-        {criticalAlertsQuery.isLoading && <p className="muted">Loading alerts...</p>}
-
-        {!criticalAlertsQuery.isLoading && (
-          <div id="critical-alerts-section" className="table-wrap scroll-mt-40">
-            <table className="data-table">
-              <thead className="sticky-table-head">
-                <tr>
-                  <th scope="col">Alert</th>
-                  <th scope="col">Tenant</th>
-                  <th scope="col">Model</th>
-                  <th scope="col">Score</th>
-                  <th scope="col">Threshold</th>
-                  <th scope="col">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(criticalAlertsQuery.data?.items ?? []).map((item) => (
-                  <tr key={item.alert_id} className="interactive-row">
-                    <td className="mono">{item.alert_id}</td>
-                    <td>{item.tenant_id}</td>
-                    <td className="mono">
-                      {item.model_name}:{item.model_version}
-                    </td>
-                    <td>{item.anomaly_score.toFixed(4)}</td>
-                    <td>{item.threshold.toFixed(4)}</td>
-                    <td>{formatDateTime(item.created_at, timezone)}</td>
+          {!criticalAlertsQuery.isLoading && (
+            <div id="critical-alerts-section" className="table-wrap scroll-mt-40">
+              <table className="data-table">
+                <thead className="sticky-table-head">
+                  <tr>
+                    <th scope="col">Alert</th>
+                    <th scope="col">Tenant</th>
+                    <th scope="col">Model</th>
+                    <th scope="col">Score</th>
+                    <th scope="col">Threshold</th>
+                    <th scope="col">Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </DataPanel>
+                </thead>
+                <tbody>
+                  {(criticalAlertsQuery.data?.items ?? []).map((item) => (
+                    <tr key={item.alert_id} className="interactive-row">
+                      <td className="mono">{item.alert_id}</td>
+                      <td>{item.tenant_id}</td>
+                      <td className="mono">
+                        {item.model_name}:{item.model_version}
+                      </td>
+                      <td>{item.anomaly_score.toFixed(4)}</td>
+                      <td>{item.threshold.toFixed(4)}</td>
+                      <td>{formatDateTime(item.created_at, timezone)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </DataPanel>
+      )}
     </DashboardPageFrame>
   );
 }

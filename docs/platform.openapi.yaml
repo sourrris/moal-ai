@@ -1,0 +1,200 @@
+openapi: 3.1.0
+info:
+  title: Aegis Platform SDK API
+  version: 1.0.0
+  description: Stable client-facing API for connector-driven ingestion and tenant risk operations.
+servers:
+  - url: https://api.aegis.example.com
+    description: Production
+  - url: http://localhost:8000
+    description: Local development
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PlatformIngestRequest:
+      type: object
+      properties:
+        connector:
+          type: string
+        source:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        transaction:
+          $ref: '#/components/schemas/StandardizedTransaction'
+        event_type:
+          type: string
+          default: transaction
+        idempotency_key:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+    StandardizedTransaction:
+      type: object
+      required:
+        - transaction_id
+        - tenant_id
+        - source
+        - amount
+        - currency
+        - timestamp
+      properties:
+        transaction_id:
+          type: string
+        tenant_id:
+          type: string
+        source:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        counterparty_id:
+          type: string
+          nullable: true
+        metadata_json:
+          type: object
+          additionalProperties: true
+    EventIngestResult:
+      type: object
+      required:
+        - event_id
+        - status
+        - queued
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [accepted, duplicate, failed]
+        queued:
+          type: boolean
+    PlatformAlertList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        next_cursor:
+          type: string
+          nullable: true
+        total_estimate:
+          type: integer
+    PlatformMetrics:
+      type: object
+      additionalProperties: true
+    PlatformConfig:
+      type: object
+      required:
+        - tenant_id
+        - enabled_connectors
+        - rule_overrides_json
+        - connector_modules_loaded
+      properties:
+        tenant_id:
+          type: string
+        anomaly_threshold:
+          type: number
+          nullable: true
+        enabled_connectors:
+          type: array
+          items:
+            type: string
+        model_version:
+          type: string
+          nullable: true
+        rule_overrides_json:
+          type: object
+          additionalProperties: true
+        connector_modules_loaded:
+          type: array
+          items:
+            type: string
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/ingest:
+    post:
+      summary: Ingest a transaction via connector normalization.
+      operationId: ingestPlatformEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformIngestRequest'
+      responses:
+        '200':
+          description: Event accepted or deduplicated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventIngestResult'
+  /api/v1/alerts:
+    get:
+      summary: List tenant alerts.
+      operationId: listPlatformAlerts
+      parameters:
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 25
+      responses:
+        '200':
+          description: Alert list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformAlertList'
+  /api/v1/metrics:
+    get:
+      summary: Read overview metrics for tenant.
+      operationId: getPlatformMetrics
+      parameters:
+        - in: query
+          name: window
+          schema:
+            type: string
+            enum: [1h, 24h, 7d]
+            default: 24h
+      responses:
+        '200':
+          description: Tenant metrics payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformMetrics'
+  /api/v1/config:
+    get:
+      summary: Get tenant runtime configuration for platform behavior.
+      operationId: getPlatformConfig
+      responses:
+        '200':
+          description: Tenant configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformConfig'

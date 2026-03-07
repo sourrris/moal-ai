@@ -33,17 +33,27 @@ function isTenantScopedToken(token: string): boolean {
     return false;
   }
 
+  const subject = payload.sub;
+  if (typeof subject !== 'string' || subject.trim().length === 0) {
+    return false;
+  }
+
   const tenantId = payload.tenant_id;
   if (typeof tenantId !== 'string' || tenantId.length === 0) {
     return false;
   }
 
-  const exp = payload.exp;
-  if (typeof exp === 'number') {
-    return exp * 1000 > Date.now();
+  const roles = payload.roles;
+  if (!Array.isArray(roles) || roles.every((role) => typeof role !== 'string' || role.trim().length === 0)) {
+    return false;
   }
 
-  return true;
+  const exp = payload.exp;
+  if (typeof exp !== 'number') {
+    return false;
+  }
+
+  return exp * 1000 > Date.now();
 }
 
 function clearStoredSession() {
