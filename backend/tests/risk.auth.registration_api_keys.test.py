@@ -151,12 +151,12 @@ async def test_register_route_uses_configured_cookie_domain(monkeypatch: pytest.
 @pytest.mark.asyncio
 async def test_require_scope_accepts_valid_x_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_authenticate(_session, raw_key):
-        assert raw_key == "aegis_live_0123456789abcdef0123456789abcdef.secretvalue123456"
+        assert raw_key == "test-api-key-scope-check-value"
         return {
             "tenant_id": "tenant-gamma",
             "scopes": ["events:write"],
             "api_key_id": "6bc6483e-42ba-44dd-9db7-5b265c657ab5",
-            "key_prefix": "aegis_live_0123456789",
+            "key_prefix": "test-key-prefix",
             "domain_id": "8472979c-f10a-4827-8df2-a6ec5ea08045",
             "domain_hostname": "app.example.com",
         }
@@ -172,14 +172,14 @@ async def test_require_scope_accepts_valid_x_api_key(monkeypatch: pytest.MonkeyP
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/secure",
-            headers={"X-API-Key": "aegis_live_0123456789abcdef0123456789abcdef.secretvalue123456"},
+            headers={"X-API-Key": "test-api-key-scope-check-value"},
         )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["tenant_id"] == "tenant-gamma"
     assert payload["domain_hostname"] == "app.example.com"
-    assert payload["sub"] == "api-key:aegis_live_0123456789"
+    assert payload["sub"] == "api-key:test-key-prefix"
 
 
 @pytest.mark.asyncio

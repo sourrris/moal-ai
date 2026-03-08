@@ -77,7 +77,7 @@ describe('SettingsPage', () => {
           key_id: 'key-1',
           tenant_id: 'tenant-gamma',
           name: 'Web ingest key',
-          key_prefix: 'aegis_live_1234567890',
+          key_prefix: 'test-key-prefix',
           active: true,
           scopes: ['events:write'],
           domain_id: 'domain-1',
