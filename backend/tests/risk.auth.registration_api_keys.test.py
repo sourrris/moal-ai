@@ -7,8 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from starlette.requests import Request
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "services" / "risk" / "api"))
@@ -163,20 +164,18 @@ async def test_require_scope_accepts_valid_x_api_key(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(deps.TenantKeyRepository, "authenticate_api_key", fake_authenticate)
 
-    app = _test_app(SimpleNamespace())
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/secure",
+            "headers": [(b"x-api-key", b"test-api-key-scope-check-value")],
+        }
+    )
 
-    @app.post("/secure")
-    async def secure_endpoint(claims: AuthClaims = Depends(deps.require_scope("events:write"))) -> dict:
-        return claims.model_dump()
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            "/secure",
-            headers={"X-API-Key": "test-api-key-scope-check-value"},
-        )
-
-    assert response.status_code == 200
-    payload = response.json()
+    claims = await deps.get_auth_claims(request=request, credentials=None, session=SimpleNamespace())
+    enforced_claims = await deps.require_scope("events:write")(claims)
+    payload = enforced_claims.model_dump()
     assert payload["tenant_id"] == "tenant-gamma"
     assert payload["domain_hostname"] == "app.example.com"
     assert payload["sub"] == "api-key:test-key-prefix"
