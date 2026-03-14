@@ -15,8 +15,8 @@ each test file.  Its ``collect()`` method purges stale ``app.*`` entries from
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from _pytest.python import Module
