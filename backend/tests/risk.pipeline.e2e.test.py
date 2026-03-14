@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 # first wins.  Worker's EventProcessor is used as a base class below, and test
 # functions also do 'import app.application.processor as processor_mod'.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk" / "worker"))
-from app.application.processor import EventProcessor
+from app.application.processor import EventProcessor  # noqa: I001
 # Remove only the root 'app' module from sys.modules so the API service's
 # app package is re-imported for app.api / app.infrastructure.  We intentionally
 # KEEP app.application.* cached from the worker so test functions can do
