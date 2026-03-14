@@ -14,9 +14,12 @@ so purging stale ``app.*`` entries here gives each file a clean slate.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
+
+import pytest
 
 
-def pytest_collect_file(parent, file_path):  # noqa: ARG001
+def pytest_collect_file(parent: pytest.Collector, file_path: Path) -> pytest.Collector | None:  # noqa: ARG001
     """Purge stale ``app.*`` module entries before each test file is imported."""
     stale = [key for key in sys.modules if key == "app" or key.startswith("app.")]
     for key in stale:
