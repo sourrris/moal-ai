@@ -15,8 +15,8 @@ from httpx import ASGITransport, AsyncClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk" / "api"))
 # Worker path intentionally NOT added here: it shadows the api service's 'app' package.
-# The one test that needs worker.EventProcessor switches context inline (see below).
-_WORKER_PATH = str(Path(__file__).resolve().parents[1] / "services" / "risk" / "worker")
+# The one test that needs worker.EventProcessor switches context inline — see
+# test_worker_v2_dedup_key_is_tenant_scoped below.
 
 from app.api import deps, routes_events_v2
 from app.infrastructure.db import get_db_session
@@ -166,16 +166,17 @@ async def test_worker_v2_dedup_key_is_tenant_scoped(monkeypatch: pytest.MonkeyPa
     # module-level imports (app.api, app.infrastructure) already loaded the
     # API service's app; we save them, swap in the worker, import what we need,
     # then restore the API modules so no other state is affected.
+    _worker_path = str(Path(__file__).resolve().parents[1] / "services" / "risk" / "worker")
     _saved_app = {k: v for k, v in sys.modules.items() if k == "app" or k.startswith("app.")}
     for _k in list(_saved_app):
         del sys.modules[_k]
-    sys.path.insert(0, _WORKER_PATH)
+    sys.path.insert(0, _worker_path)
     try:
-        from app.application.processor import EventProcessor
         import app.application.processor as processor_mod
+        from app.application.processor import EventProcessor
         from risk_common.schemas_v2 import RiskEventV2
     finally:
-        sys.path.remove(_WORKER_PATH)
+        sys.path.remove(_worker_path)
         for _k in list(sys.modules):
             if _k == "app" or _k.startswith("app."):
                 del sys.modules[_k]
