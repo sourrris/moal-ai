@@ -5,8 +5,8 @@ import aio_pika
 from aio_pika import DeliveryMode, ExchangeType, IncomingMessage, Message
 
 
-async def connect(url: str) -> aio_pika.RobustConnection:
-    return await aio_pika.connect_robust(url)
+async def connect(url: str, *, heartbeat: int = 60, connection_timeout: float = 10.0) -> aio_pika.RobustConnection:
+    return await aio_pika.connect_robust(url, heartbeat=heartbeat, connection_timeout=connection_timeout)
 
 
 def _unique(*values: str) -> list[str]:

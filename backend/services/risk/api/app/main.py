@@ -45,7 +45,11 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
 
-    rabbit_conn = await connect(settings.rabbitmq_url)
+    rabbit_conn = await connect(
+        settings.rabbitmq_url,
+        heartbeat=settings.rabbitmq_heartbeat_seconds,
+        connection_timeout=float(settings.rabbitmq_connection_timeout_seconds),
+    )
     rabbit_channel = await rabbit_conn.channel(publisher_confirms=True)
     await setup_topology(rabbit_channel, settings)
 

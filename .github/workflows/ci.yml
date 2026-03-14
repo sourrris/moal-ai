@@ -6,13 +6,35 @@ on:
     branches: [main, work, "upgrade/**"]
 
 jobs:
-  risk_api_quality_gate:
-    name: risk.api-quality-gate
+  # ── 1. Secret / supply-chain scan ──────────────────────────────────────────
+  security:
+    name: security-scan
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: read
-      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_NOGIT preserves --no-git semantics from the previous curl-based
+          # install: scans the filesystem only, not git history. This avoids false
+          # positives from already-rotated historical secrets. Remove this env var
+          # only after populating a .gitleaksignore with any known historical findings.
+          GITLEAKS_NOGIT: "true"
+
+  # ── 2. Python quality gate ─────────────────────────────────────────────────
+  backend-quality:
+    name: backend-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:16
@@ -29,67 +51,77 @@ jobs:
           --health-retries=5
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - uses: azure/setup-kubectl@v4
-
-      - name: Security scan
-        run: |
-          set -euo pipefail
-          gitleaks_version="8.24.2"
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_version}/gitleaks_${gitleaks_version}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
-          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
-          /tmp/gitleaks detect --source . --no-git --redact --exit-code 1
+          cache: pip
+          cache-dependency-path: |
+            backend/libs/common/pyproject.toml
+            backend/services/risk/requirements.base.txt
+            backend/services/risk/**/requirements.txt
+            backend/requirements-dev.txt
 
       - name: Install backend dependencies
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -e backend/libs/common
-          requirement_files="$(find backend/services -type f -name requirements.txt | sort)"
-          if [ -z "${requirement_files}" ]; then
-            echo "No backend service requirements files found under backend/services"
-            exit 1
-          fi
-          while IFS= read -r requirement_file; do
-            echo "Installing ${requirement_file}"
-            python -m pip install -r "${requirement_file}"
-          done <<< "${requirement_files}"
+          while IFS= read -r req; do
+            echo "Installing $req"
+            python -m pip install -r "$req"
+          done < <(find backend/services -name requirements.txt | sort)
           python -m pip install -r backend/requirements-dev.txt
 
-      - name: Backend quality checks
+      - name: Lint and type-check
         run: |
-          ruff check backend/tests
-          mypy backend/tests
-          bandit -r backend/services backend/libs -q --severity-level medium
-          pytest -q
+          ruff check backend/
+          mypy backend/
 
-      - name: Migration validation
+      - name: Security audit
+        run: |
+          bandit -r backend/services backend/libs -q --severity-level medium
+          # Audit all packages in the environment (no -r flag): the install step
+          # already loaded every service requirement into this venv, so this scans
+          # the full production + dev surface — fastapi, uvicorn, sqlalchemy, asyncpg,
+          # tensorflow, passlib, slowapi, argon2-cffi, and all transitive deps.
+          pip-audit --skip-editable -q
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Validate migrations
         run: |
           cd backend
-          DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/risk_monitor alembic -c alembic.ini upgrade head
+          DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/risk_monitor \
+            alembic -c alembic.ini upgrade head
+
+  # ── 3. Frontend quality gate ───────────────────────────────────────────────
+  frontend-quality:
+    name: frontend-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            frontend/dashboard/package-lock.json
+            frontend/control-tenant/package-lock.json
+            frontend/control-ops/package-lock.json
 
       - name: Install frontend dependencies
         run: |
-          npm install --prefix frontend/dashboard
-          npm install --prefix frontend/control-tenant
-          npm install --prefix frontend/control-ops
+          npm ci --prefix frontend/dashboard
+          npm ci --prefix frontend/control-tenant
+          npm ci --prefix frontend/control-ops
 
-      - name: Install Playwright browser
-        run: |
-          cd frontend/control-ops
-          npx playwright install --with-deps chromium
-
-      - name: Frontend quality checks
+      - name: Test and build
         run: |
           npm test --prefix frontend/dashboard
           npm run build --prefix frontend/dashboard
@@ -99,7 +131,30 @@ jobs:
           npm run lint --prefix frontend/control-ops
           npm run build --prefix frontend/control-ops
 
-      - name: Ops control browser smoke
+  # ── 4. Playwright smoke test (control-ops) ─────────────────────────────────
+  control-ops-smoke:
+    name: control-ops-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [frontend-quality]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/control-ops/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix frontend/control-ops
+
+      - name: Install Playwright browser
+        run: npx --prefix frontend/control-ops playwright install --with-deps chromium
+
+      - name: Smoke test
         run: |
           set -euo pipefail
           cd frontend/control-ops
@@ -109,22 +164,38 @@ jobs:
           timeout 60 bash -c 'until curl -fsS http://127.0.0.1:4175 >/dev/null; do sleep 1; done'
           PLAYWRIGHT_BASE_URL=http://127.0.0.1:4175 npm run test:e2e
 
+  # ── 5. Infrastructure validation ───────────────────────────────────────────
+  infra-validate:
+    name: infra-validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-kubectl@v4
+
       - name: Validate kustomize overlays
         run: |
           kubectl kustomize infra/eks/overlays/staging > /dev/null
           kubectl kustomize infra/eks/overlays/prod > /dev/null
 
-  risk_api_build_gate:
-    name: risk.api-build-gate
+  # ── 6. Docker build + push + scan ──────────────────────────────────────────
+  build:
+    name: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [risk_api_quality_gate]
+    needs: [security, backend-quality, frontend-quality, control-ops-smoke, infra-validate]
     permissions:
       contents: read
       packages: write
       security-events: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         if: github.ref == 'refs/heads/main'
@@ -134,9 +205,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push service images
+      - name: Build (and push on main) service images
         env:
-          REGISTRY: ghcr.io/${{ github.repository_owner }}
           PUSH: ${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
         run: |
           set -euo pipefail
@@ -144,25 +214,25 @@ jobs:
           build_and_push() {
             local tag="$1"
             local dockerfile="$2"
-            docker build -t "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}" -f "${dockerfile}" .
+            local full_tag="ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}"
+            docker build -t "${full_tag}" -f "${dockerfile}" .
             if [ "${PUSH}" = "true" ]; then
-              docker push "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}"
-              docker tag "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}" "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:latest"
+              docker push "${full_tag}"
+              docker tag "${full_tag}" "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:latest"
               docker push "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:latest"
             fi
           }
-          dockerfiles="$(find backend/services -type f -name Dockerfile | sort)"
           while IFS= read -r dockerfile; do
             svc="$(basename "$(dirname "${dockerfile}")")"
             build_and_push "${svc}" "${dockerfile}"
-          done <<< "${dockerfiles}"
+          done < <(find backend/services -name Dockerfile | sort)
           build_and_push "migrations" "backend/Dockerfile.migrations"
           build_and_push "dashboard" "frontend/dashboard/Dockerfile"
           build_and_push "control-tenant" "frontend/control-tenant/Dockerfile"
           build_and_push "control-ops" "frontend/control-ops/Dockerfile"
 
-      - name: Trivy container scan
-        uses: aquasecurity/trivy-action@master
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: fs
           scan-ref: .

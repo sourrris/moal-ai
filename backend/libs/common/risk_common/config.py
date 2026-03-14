@@ -10,7 +10,7 @@ class BaseServiceSettings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
-    api_host: str = "0.0.0.0"
+    api_host: str = "0.0.0.0"  # nosec B104 — intentional: microservice binds all interfaces in container
     api_port: int = 8000
 
     rabbitmq_url: str = Field(
@@ -54,6 +54,8 @@ class BaseServiceSettings(BaseSettings):
     rabbitmq_reference_routing_key_legacy: str = "risk.reference.updated"
     rabbitmq_reference_queue_legacy: str = "risk.reference.queue"
     rabbitmq_queue_type: str = "classic"
+    rabbitmq_heartbeat_seconds: int = 60
+    rabbitmq_connection_timeout_seconds: int = 10
 
     redis_url: str = Field(
         default="redis://redis:6379/0",

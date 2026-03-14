@@ -14,7 +14,9 @@ from httpx import ASGITransport, AsyncClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk" / "api"))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk" / "worker"))
+# Worker path intentionally NOT added here: it shadows the api service's 'app' package.
+# The one test that needs worker.EventProcessor switches context inline — see
+# test_worker_v2_dedup_key_is_tenant_scoped below.
 
 from app.api import deps, routes_events_v2
 from app.infrastructure.db import get_db_session
@@ -22,8 +24,6 @@ from risk_common.schemas_v2 import AuthClaims
 
 
 def _make_app_with_auth(fake_token_payload: dict | None) -> FastAPI:
-    from app.api import routes_auth_v2
-
     app = FastAPI()
     app.include_router(routes_events_v2.router)
     app.state.rabbit_channel = SimpleNamespace()
@@ -160,8 +160,27 @@ async def test_resolve_tenant_context_uses_provided_tenant_when_no_role_mapping(
 @pytest.mark.asyncio
 async def test_worker_v2_dedup_key_is_tenant_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
     import json
-    from app.application.processor import EventProcessor
-    from risk_common.schemas_v2 import RiskEventV2
+
+    # Temporarily switch sys.modules['app'] to the worker service so that
+    # EventProcessor and processor_mod come from the right package.  The
+    # module-level imports (app.api, app.infrastructure) already loaded the
+    # API service's app; we save them, swap in the worker, import what we need,
+    # then restore the API modules so no other state is affected.
+    _worker_path = str(Path(__file__).resolve().parents[1] / "services" / "risk" / "worker")
+    _saved_app = {k: v for k, v in sys.modules.items() if k == "app" or k.startswith("app.")}
+    for _k in list(_saved_app):
+        del sys.modules[_k]
+    sys.path.insert(0, _worker_path)
+    try:
+        import app.application.processor as processor_mod
+        from app.application.processor import EventProcessor
+        from risk_common.schemas_v2 import RiskEventV2
+    finally:
+        sys.path.remove(_worker_path)
+        for _k in list(sys.modules):
+            if _k == "app" or _k.startswith("app."):
+                del sys.modules[_k]
+        sys.modules.update(_saved_app)
 
     class _FakeRedis:
         def __init__(self):
@@ -174,8 +193,6 @@ async def test_worker_v2_dedup_key_is_tenant_scoped(monkeypatch: pytest.MonkeyPa
 
         async def set(self, key: str, value, ex=None):
             self.stored[key] = value
-
-    import app.application.processor as processor_mod
 
     class _FakeSession:
         async def execute(self, stmt, params=None):
@@ -222,7 +239,6 @@ async def test_worker_v2_dedup_key_is_tenant_scoped(monkeypatch: pytest.MonkeyPa
     class _FixedProcessor(EventProcessor):
         async def _call_inference(self, event_id, transaction, features):
             from risk_common.schemas import InferenceResponse
-            from uuid import uuid4 as _uuid4
 
             return InferenceResponse(
                 event_id=event_id,

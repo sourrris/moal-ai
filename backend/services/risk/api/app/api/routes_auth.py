@@ -15,10 +15,12 @@ from risk_common.schemas import TokenResponse
 from risk_common.security import build_rsa_jwk, create_access_token, create_refresh_token, decode_refresh_token
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_auth_claims
 from app.config import get_settings
 from app.infrastructure.db import get_db_session
 from app.infrastructure.monitoring_repository import RefreshSessionRepository, UserRepository
 from app.infrastructure.tenant_setup_repository import DuplicateResourceError, TenantSetupRepository
+from risk_common.schemas_v2 import AuthClaims
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 settings = get_settings()
@@ -75,6 +77,13 @@ class RegisterRequest(BaseModel):
 class OAuthStatePayload(BaseModel):
     provider: str
     nonce: str
+
+
+class MeResponse(BaseModel):
+    username: str
+    tenant_id: str
+    roles: list[str]
+    scopes: list[str]
 
 
 def _oauth_state_secret() -> bytes:
@@ -249,6 +258,16 @@ async def _finish_social_login(session: AsyncSession, provider: str, claims: dic
     response = RedirectResponse(url=f"{settings.frontend_base_url}/auth/callback?{redirect_query}", status_code=302)
     _set_auth_cookies(response, access_token=access_token, refresh_token=refresh_token)
     return response
+
+
+@router.get("/me", response_model=MeResponse)
+async def get_me(claims: AuthClaims = Depends(get_auth_claims)) -> MeResponse:
+    return MeResponse(
+        username=claims.sub,
+        tenant_id=claims.tenant_id,
+        roles=claims.roles,
+        scopes=claims.scopes,
+    )
 
 
 @router.get("/jwks")
