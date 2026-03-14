@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 
 import httpx
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class EnrichmentRequest(BaseModel):
@@ -70,7 +72,8 @@ class FeatureEnrichmentService:
                     }
                 )
             else:
-                pass # IP info only from cache if paid sources removed
+                logger.warning("enrichment_cache_miss", extra={"field": "source_ip", "value": payload.source_ip})
+                provenance.append({"source": "ip_intelligence_cache", "field": "source_ip", "cache_hit": False, "latency_ms": 0})
 
         if payload.card_bin:
             row = await session.execute(
@@ -100,7 +103,8 @@ class FeatureEnrichmentService:
                     }
                 )
             else:
-                pass # Bin info only from cache if paid sources removed
+                logger.warning("enrichment_cache_miss", extra={"field": "card_bin", "value": payload.card_bin})
+                provenance.append({"source": "bin_intelligence_cache", "field": "card_bin", "cache_hit": False, "latency_ms": 0})
 
         jurisdiction = payload.destination_country or payload.source_country
         if jurisdiction:

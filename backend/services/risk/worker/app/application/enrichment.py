@@ -113,10 +113,9 @@ class EventEnrichmentService:
             pep_row = await session.execute(
                 text(
                     """
-                    SELECT 1
+                    SELECT source_name
                     FROM pep_entities
-                    WHERE active = TRUE
-                      AND (
+                    WHERE (
                         lower(full_name) = lower(:merchant_name)
                         OR lower(:merchant_name) = ANY(
                             SELECT lower(alias) FROM unnest(aliases) AS alias
@@ -127,10 +126,10 @@ class EventEnrichmentService:
                 ),
                 {"merchant_name": merchant_name},
             )
-            if pep_row.first():
+            pep_hit = pep_row.first()
+            if pep_hit:
                 signals["pep_hit"] = True
-                # Only ofac/fatf/etc.
-                pass
+                sources.append(str(pep_hit[0]) if pep_hit[0] else "pep_entities")
 
         if event.transaction.currency.upper() != "USD":
             fx_row = await session.execute(

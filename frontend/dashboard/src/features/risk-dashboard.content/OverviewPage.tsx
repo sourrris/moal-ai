@@ -72,12 +72,12 @@ export function OverviewPage() {
   const { tenant, window, timezone } = useUI();
   const tenantConfig = resolveTenantConfig(tenant);
   const live = useLiveAlertState();
-  const resolvedTenant = resolveTenantSelection(tenant, tenantId) ?? 'tenant-alpha';
+  const resolvedTenant = resolveTenantSelection(tenant, tenantId);
 
   const metricsQuery = useQuery({
     queryKey: ['overview-metrics', tenant, window],
-    queryFn: async () => fetchOverviewMetrics(token!, resolvedTenant, window),
-    enabled: Boolean(token),
+    queryFn: async () => fetchOverviewMetrics(token!, resolvedTenant!, window),
+    enabled: Boolean(token) && Boolean(resolvedTenant),
     refetchInterval: live.connected && !live.stale ? false : 15_000,
     refetchIntervalInBackground: true
   });
@@ -86,11 +86,11 @@ export function OverviewPage() {
     queryKey: ['overview-critical-alerts', tenant, window],
     queryFn: async () =>
       fetchAlerts(token!, {
-        tenant_id: resolvedTenant,
+        tenant_id: resolvedTenant!,
         severity: 'critical',
         limit: 10
       }),
-    enabled: Boolean(token),
+    enabled: Boolean(token) && Boolean(resolvedTenant),
     refetchInterval: live.connected && !live.stale ? false : 15_000,
     refetchIntervalInBackground: true
   });

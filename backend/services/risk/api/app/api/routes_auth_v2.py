@@ -28,6 +28,8 @@ async def issue_token_v2(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad credentials")
 
     context = await UserRepository.resolve_tenant_context(session, user, payload.tenant_id)
+    if not context:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No tenant assignment for this user")
 
     access_token = create_access_token(
         subject=user.username,

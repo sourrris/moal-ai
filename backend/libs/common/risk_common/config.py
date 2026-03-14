@@ -1,3 +1,6 @@
+import sys
+import warnings
+
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -172,7 +175,19 @@ class BaseServiceSettings(BaseSettings):
     alert_router_max_attempts: int = 3
     alert_router_webhook_signing_secret: str = "change-me-alert-router-signing"
     alert_router_email_smtp_host: str = "localhost"
-    alert_router_email_smtp_port: int = 25
+    alert_router_email_smtp_port: int = 587
+    alert_router_email_smtp_username: str = Field(
+        default="",
+        validation_alias=AliasChoices("SMTP_USERNAME", "alert_router_email_smtp_username"),
+    )
+    alert_router_email_smtp_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("SMTP_PASSWORD", "alert_router_email_smtp_password"),
+    )
+    alert_router_email_smtp_tls: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("SMTP_TLS", "alert_router_email_smtp_tls"),
+    )
     alert_router_email_from: str = "no-reply@aegis.local"
     model_activation_min_samples: int = Field(
         default=64,
@@ -207,6 +222,15 @@ class BaseServiceSettings(BaseSettings):
     connector_enable_mempool: bool = True
     connector_enable_abusech: bool = True
 
+    sentry_dsn: str = Field(
+        default="",
+        validation_alias=AliasChoices("SENTRY_DSN", "sentry_dsn"),
+    )
+    sentry_traces_sample_rate: float = Field(
+        default=0.1,
+        validation_alias=AliasChoices("SENTRY_TRACES_SAMPLE_RATE", "sentry_traces_sample_rate"),
+    )
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @staticmethod
@@ -217,6 +241,7 @@ class BaseServiceSettings(BaseSettings):
         return normalized in {
             "change-me-in-prod",
             "change-me-refresh-secret",
+            "change-me-alert-router-signing",
             "changeme",
             "default",
             "secret",
@@ -225,7 +250,26 @@ class BaseServiceSettings(BaseSettings):
     @model_validator(mode="after")
     def _validate_production_secrets(self) -> "BaseServiceSettings":
         env_name = (self.environment or "").strip().lower()
-        if env_name not in {"prod", "production"}:
+        is_strict = env_name in {"prod", "production", "staging", "stage"}
+
+        using_placeholder = (
+            self.jwt_algorithm.upper().startswith("HS")
+            and (
+                self._is_placeholder_secret(self.jwt_secret_key)
+                or len(self.jwt_secret_key) < 32
+                or self._is_placeholder_secret(self.jwt_refresh_secret_key)
+                or len(self.jwt_refresh_secret_key) < 32
+            )
+        )
+
+        if using_placeholder and not is_strict:
+            print(
+                f"[AEGIS WARNING] JWT secrets are using placeholder values in environment '{env_name}'. "
+                "Set JWT_SECRET and JWT_REFRESH_SECRET before deploying.",
+                file=sys.stderr,
+            )
+
+        if not is_strict:
             return self
 
         errors: list[str] = []
@@ -240,12 +284,15 @@ class BaseServiceSettings(BaseSettings):
             if "BEGIN" not in self.jwt_public_key_pem:
                 errors.append("JWT_PUBLIC_KEY_PEM must be set for RS* algorithms")
 
+        if self._is_placeholder_secret(self.alert_router_webhook_signing_secret):
+            errors.append("ALERT_ROUTER_WEBHOOK_SIGNING_SECRET must be set to a non-default value")
+
         samesite = (self.auth_cookie_samesite or "").strip().lower()
         if samesite not in {"lax", "strict", "none"}:
             errors.append("AUTH_COOKIE_SAMESITE must be one of: lax, strict, none")
 
         if errors:
-            raise ValueError("Production secret validation failed: " + "; ".join(errors))
+            raise ValueError(f"Secret validation failed for environment '{env_name}': " + "; ".join(errors))
         return self
 
     @property

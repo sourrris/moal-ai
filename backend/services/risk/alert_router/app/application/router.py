@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import smtplib
@@ -61,6 +63,9 @@ async def _send_email(
     *,
     smtp_host: str,
     smtp_port: int,
+    smtp_username: str,
+    smtp_password: str,
+    smtp_tls: bool,
     sender: str,
     recipients: list[str],
     subject: str,
@@ -73,6 +78,10 @@ async def _send_email(
         message["To"] = ", ".join(recipients)
         message.set_content(body)
         with smtplib.SMTP(host=smtp_host, port=smtp_port, timeout=10) as smtp:
+            if smtp_tls:
+                smtp.starttls()
+            if smtp_username and smtp_password:
+                smtp.login(smtp_username, smtp_password)
             smtp.send_message(message)
 
     await asyncio.to_thread(_run)
@@ -86,8 +95,18 @@ async def _deliver_to_destination(destination: dict, alert_payload: dict[str, An
         url = str(config.get("url") or "").strip()
         if not url:
             return "failed", None, None, "Missing webhook URL"
+        body_bytes = json.dumps(alert_payload, default=str).encode("utf-8")
+        signature = hmac.new(
+            settings.alert_router_webhook_signing_secret.encode("utf-8"),
+            body_bytes,
+            hashlib.sha256,
+        ).hexdigest()
         async with httpx.AsyncClient(timeout=settings.alert_router_timeout_seconds) as client:
-            response = await client.post(url, json=alert_payload)
+            response = await client.post(
+                url,
+                content=body_bytes,
+                headers={"Content-Type": "application/json", "X-Aegis-Signature": f"sha256={signature}"},
+            )
             if 200 <= response.status_code < 300:
                 return "delivered", response.status_code, response.text[:4000], None
             return "failed", response.status_code, response.text[:4000], f"Webhook returned {response.status_code}"
@@ -119,6 +138,9 @@ async def _deliver_to_destination(destination: dict, alert_payload: dict[str, An
 
         smtp_host = str(config.get("smtp_host") or settings.alert_router_email_smtp_host)
         smtp_port = int(config.get("smtp_port") or settings.alert_router_email_smtp_port)
+        smtp_username = str(config.get("smtp_username") or settings.alert_router_email_smtp_username)
+        smtp_password = str(config.get("smtp_password") or settings.alert_router_email_smtp_password)
+        smtp_tls = bool(config.get("smtp_tls") if config.get("smtp_tls") is not None else settings.alert_router_email_smtp_tls)
         sender = str(config.get("from") or settings.alert_router_email_from)
         subject = str(config.get("subject") or "Aegis alert notification")
         body = json.dumps(alert_payload, indent=2, default=str)
@@ -126,6 +148,9 @@ async def _deliver_to_destination(destination: dict, alert_payload: dict[str, An
             await _send_email(
                 smtp_host=smtp_host,
                 smtp_port=smtp_port,
+                smtp_username=smtp_username,
+                smtp_password=smtp_password,
+                smtp_tls=smtp_tls,
                 sender=sender,
                 recipients=recipients,
                 subject=subject,

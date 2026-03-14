@@ -148,10 +148,11 @@ class UserRepository:
                 "scopes": sorted(scope_set),
             }
 
+        if not requested_tenant_id:
+            return None
         fallback_role = (user.role or "analyst").strip() or "analyst"
-        tenant_id = requested_tenant_id or "tenant-alpha"
         return {
-            "tenant_id": tenant_id,
+            "tenant_id": requested_tenant_id,
             "roles": [fallback_role],
             "scopes": UserRepository.ROLE_DEFAULT_SCOPES.get(fallback_role, UserRepository.ROLE_DEFAULT_SCOPES["viewer"]),
         }

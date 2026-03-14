@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.model_routes import router as ml_router
 from app.application.model_inference_service import InferenceService
@@ -10,6 +12,12 @@ from risk_common.logging import configure_logging
 from risk_common.schemas import HealthResponse
 
 settings = get_settings()
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        environment=settings.environment,
+    )
 
 
 @asynccontextmanager
@@ -24,6 +32,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Risk ML Inference", version="0.1.0", lifespan=lifespan)
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.include_router(ml_router)
 
 

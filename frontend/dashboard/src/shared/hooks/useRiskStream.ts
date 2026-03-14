@@ -21,8 +21,11 @@ function readTenantId(token: string) {
   }
 }
 
-function toWsUrl(base: string, token: string, tenant: string) {
-  const resolvedTenant = tenant === 'all' ? readTenantId(token) ?? 'tenant-alpha' : tenant;
+function toWsUrl(base: string, token: string, tenant: string): string | null {
+  const resolvedTenant = tenant === 'all' ? readTenantId(token) : tenant;
+  if (!resolvedTenant) {
+    return null;
+  }
   return `${base.replace(/^http/, 'ws')}/ws/risk-stream?channels=alerts,metrics&token=${encodeURIComponent(token)}&tenant_id=${encodeURIComponent(resolvedTenant)}`;
 }
 
@@ -69,7 +72,11 @@ export function useRiskStream(token: string | null, tenant: string, toast?: Retu
         return;
       }
 
-      socket = new WebSocket(toWsUrl(WS_BASE_URL, token, tenant));
+      const wsUrl = toWsUrl(WS_BASE_URL, token, tenant);
+      if (!wsUrl) {
+        return;
+      }
+      socket = new WebSocket(wsUrl);
       socket.onopen = () => {
         if (!active || !socket) return;
         setConnected(true);

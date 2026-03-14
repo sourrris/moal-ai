@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 from redis.asyncio import Redis
 
 from app.application.processor import EventProcessor
@@ -11,6 +13,12 @@ from risk_common.messaging import connect, setup_topology
 from risk_common.schemas import HealthResponse
 
 settings = get_settings()
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        environment=settings.environment,
+    )
 
 
 @asynccontextmanager
@@ -56,6 +64,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Risk Event Worker", version="0.1.0", lifespan=lifespan)
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 @app.get("/health/live", response_model=HealthResponse, tags=["health"])

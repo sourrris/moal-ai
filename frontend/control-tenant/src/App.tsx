@@ -35,7 +35,7 @@ const MONITORING_API_BASE_URL = import.meta.env.VITE_MONITORING_API_BASE_URL ?? 
 type SessionState = {
   token: string | null;
   username: string | null;
-  tenantId: string;
+  tenantId: string | null;
 };
 
 type SessionBootstrapState = SessionState & {
@@ -54,7 +54,7 @@ function getSessionState(): SessionState {
       return {
         token: handedOffSession.token,
         username: handedOffSession.username,
-        tenantId: handedOffSession.tenantId ?? 'tenant-alpha'
+        tenantId: handedOffSession.tenantId ?? null
       };
     }
   }
@@ -65,7 +65,7 @@ function getSessionState(): SessionState {
   return {
     token: session.token,
     username: session.username,
-    tenantId: session.tenantId ?? 'tenant-alpha'
+    tenantId: session.tenantId ?? null
   };
 }
 
@@ -88,7 +88,7 @@ async function refreshMonitoringSession(): Promise<SessionState | null> {
   return {
     token: session.token,
     username: session.username,
-    tenantId: session.tenantId ?? 'tenant-alpha'
+    tenantId: session.tenantId ?? null
   };
 }
 
@@ -117,11 +117,11 @@ function useSessionBootstrap(): SessionBootstrapState {
           setState({ ...session, status: 'ready' });
           return;
         }
-        setState({ token: null, username: null, tenantId: 'tenant-alpha', status: 'missing' });
+        setState({ token: null, username: null, tenantId: null, status: 'missing' });
       })
       .catch(() => {
         if (!cancelled) {
-          setState({ token: null, username: null, tenantId: 'tenant-alpha', status: 'missing' });
+          setState({ token: null, username: null, tenantId: null, status: 'missing' });
         }
       });
 
@@ -888,7 +888,7 @@ export function App() {
     );
   }
 
-  if (!token || !client) {
+  if (!token || !client || !tenantId) {
     return (
       <ControlShell brand={brand}>
         <AuthRequiredPanel />

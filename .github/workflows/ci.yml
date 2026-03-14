@@ -70,6 +70,7 @@ jobs:
         run: |
           ruff check backend/tests
           mypy backend/tests
+          bandit -r backend/services backend/libs -q --severity-level medium
           pytest -q
 
       - name: Migration validation
@@ -92,6 +93,7 @@ jobs:
         run: |
           npm test --prefix frontend/dashboard
           npm run build --prefix frontend/dashboard
+          npm test --prefix frontend/control-tenant
           npm run lint --prefix frontend/control-tenant
           npm run build --prefix frontend/control-tenant
           npm run lint --prefix frontend/control-ops
@@ -117,26 +119,53 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [risk_api_quality_gate]
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build service images
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push service images
+        env:
+          REGISTRY: ghcr.io/${{ github.repository_owner }}
+          PUSH: ${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
         run: |
           set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::8}"
+          build_and_push() {
+            local tag="$1"
+            local dockerfile="$2"
+            docker build -t "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}" -f "${dockerfile}" .
+            if [ "${PUSH}" = "true" ]; then
+              docker push "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}"
+              docker tag "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}" "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:latest"
+              docker push "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:latest"
+            fi
+          }
           dockerfiles="$(find backend/services -type f -name Dockerfile | sort)"
-          if [ -z "${dockerfiles}" ]; then
-            echo "No backend service Dockerfiles found under backend/services"
-            exit 1
-          fi
           while IFS= read -r dockerfile; do
-            echo "Building backend image from ${dockerfile} (context: repo root)"
-            docker build -f "${dockerfile}" .
+            svc="$(basename "$(dirname "${dockerfile}")")"
+            build_and_push "${svc}" "${dockerfile}"
           done <<< "${dockerfiles}"
-          echo "Building migration image from backend/Dockerfile.migrations (context: repo root)"
-          docker build -f backend/Dockerfile.migrations .
-          echo "Building image from frontend/dashboard/Dockerfile"
-          docker build -f frontend/dashboard/Dockerfile .
-          echo "Building image from frontend/control-tenant/Dockerfile"
-          docker build -f frontend/control-tenant/Dockerfile .
-          echo "Building image from frontend/control-ops/Dockerfile"
-          docker build -f frontend/control-ops/Dockerfile .
+          build_and_push "migrations" "backend/Dockerfile.migrations"
+          build_and_push "dashboard" "frontend/dashboard/Dockerfile"
+          build_and_push "control-tenant" "frontend/control-tenant/Dockerfile"
+          build_and_push "control-ops" "frontend/control-ops/Dockerfile"
+
+      - name: Trivy container scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: true

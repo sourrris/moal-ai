@@ -40,7 +40,7 @@ export function AppShell() {
   const tenantConfig = resolveTenantConfig(tenant);
   const navItems = NAV_ITEMS.filter((item) => tenantConfig.features.nav[item.key]);
   const availableTenants = useMemo<string[]>(() => buildTenantOptions(tenantId, tenant), [tenant, tenantId]);
-  const resolvedTenant = resolveTenantSelection(tenant, tenantId) ?? 'tenant-alpha';
+  const resolvedTenant = resolveTenantSelection(tenant, tenantId);
   const [lastQueuedAck, setLastQueuedAck] = useState<{ eventId: string; queued: boolean; status: string } | null>(
     null
   );
@@ -128,6 +128,9 @@ export function AppShell() {
     mutationFn: async () => {
       if (!token) {
         throw new Error('No auth token');
+      }
+      if (!resolvedTenant) {
+        throw new Error('No tenant context');
       }
       return ingestSyntheticEvent(token, resolvedTenant);
     },

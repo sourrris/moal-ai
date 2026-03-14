@@ -234,6 +234,8 @@ async def _finish_social_login(session: AsyncSession, provider: str, claims: dic
     username = email or f"{provider}:{social_subject}"
     user = await UserRepository.get_or_create_social_user(session=session, username=username)
     context = await UserRepository.resolve_tenant_context(session, user, None)
+    if not context:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No tenant assignment for this user")
     access_token, refresh_token = await _issue_session_tokens(
         session=session,
         request=request,
@@ -273,6 +275,8 @@ async def issue_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad credentials")
 
     context = await UserRepository.resolve_tenant_context(session, user, payload.tenant_id)
+    if not context:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No tenant assignment for this user")
     access_token, refresh_token = await _issue_session_tokens(
         session=session,
         request=request,

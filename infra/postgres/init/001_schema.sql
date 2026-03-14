@@ -47,9 +47,6 @@ CREATE INDEX IF NOT EXISTS idx_anomaly_results_event_id ON anomaly_results (even
 CREATE INDEX IF NOT EXISTS idx_anomaly_results_processed_at ON anomaly_results (processed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_model_registry_active ON model_registry (active);
 
-INSERT INTO users (username, password_hash, role)
-VALUES ('admin', crypt('admin123', gen_salt('bf')), 'admin')
-ON CONFLICT (username) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS tenants (
     tenant_id VARCHAR(120) PRIMARY KEY,

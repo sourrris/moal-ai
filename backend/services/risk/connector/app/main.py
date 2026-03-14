@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 from risk_common.logging import configure_logging
 from risk_common.messaging import connect, setup_topology
 from risk_common.schemas import HealthResponse
@@ -11,6 +13,12 @@ from app.config import get_settings
 from app.infrastructure.db import SessionLocal, db_ready
 
 settings = get_settings()
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        environment=settings.environment,
+    )
 
 
 @asynccontextmanager
@@ -38,6 +46,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Risk Data Connector Service", version="0.1.0", lifespan=lifespan)
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.include_router(connectors_router)
 
 

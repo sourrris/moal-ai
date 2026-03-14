@@ -117,7 +117,8 @@ class ConnectorScheduler:
                 cursor_state=runtime.get("cursor_state") if isinstance(runtime.get("cursor_state"), dict) else {},
             )
 
-        assert runtime is not None
+        if runtime is None:
+            return
         cadence_seconds = int(runtime.get("cadence_seconds") or settings.connector_poll_seconds)
         previous_failures = int(runtime.get("consecutive_failures") or 0)
 
@@ -429,7 +430,9 @@ class ConnectorScheduler:
         if not events:
             return
 
-        tenant_id = settings.connector_auto_ingest_tenant_id.strip() or "tenant-alpha"
+        tenant_id = settings.connector_auto_ingest_tenant_id.strip()
+        if not tenant_id:
+            raise RuntimeError("connector_auto_ingest_tenant_id must be set; refusing to ingest events without a tenant")
         token = create_access_token(
             subject=settings.connector_auto_ingest_subject,
             secret_key=settings.jwt_signing_key,

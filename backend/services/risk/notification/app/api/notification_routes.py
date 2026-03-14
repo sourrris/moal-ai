@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from risk_common.security import decode_access_token
 
@@ -7,6 +9,7 @@ from app.domain.connection_manager import ConnectionManager
 router = APIRouter(tags=["notifications"])
 settings = get_settings()
 SUPPORTED_CHANNELS = {"alerts", "metrics"}
+logger = logging.getLogger(__name__)
 
 
 def _manager(websocket: WebSocket) -> ConnectionManager:
@@ -69,18 +72,20 @@ async def _run_stream(websocket: WebSocket, channels: list[str]) -> None:
         manager.disconnect(websocket)
 
 
-@router.websocket("/ws/alerts")
-async def alerts_stream(websocket: WebSocket) -> None:
-    await _run_stream(websocket, channels=["alerts"])
-
-
 @router.websocket("/ws/stream")
 async def multiplexed_stream(websocket: WebSocket) -> None:
     await _run_stream(websocket, channels=_resolve_channels(websocket))
 
 
+@router.websocket("/ws/alerts")
+async def alerts_stream(websocket: WebSocket) -> None:
+    logger.warning("ws_deprecated_endpoint", extra={"endpoint": "/ws/alerts", "use_instead": "/ws/stream?channels=alerts"})
+    await _run_stream(websocket, channels=["alerts"])
+
+
 @router.websocket("/ws/risk-stream")
 async def risk_stream(websocket: WebSocket) -> None:
+    logger.warning("ws_deprecated_endpoint", extra={"endpoint": "/ws/risk-stream", "use_instead": "/ws/stream"})
     await _run_stream(websocket, channels=_resolve_channels(websocket))
 
 
