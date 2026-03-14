@@ -14,13 +14,21 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "libs" / "common"))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk" / "api"))
+# Load EventProcessor from worker service first, before switching to API app.
+# Both services use 'app' as their top-level package; the one that is imported
+# first wins.  Worker's EventProcessor is used as a base class below, and test
+# functions also do 'import app.application.processor as processor_mod'.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk" / "worker"))
-
-from app.api import deps, routes_events_v2
 from app.application.processor import EventProcessor
-from app.infrastructure.db import get_db_session
-from risk_common.schemas_v2 import AuthClaims
+# Remove only the root 'app' module from sys.modules so the API service's
+# app package is re-imported for app.api / app.infrastructure.  We intentionally
+# KEEP app.application.* cached from the worker so test functions can do
+# 'import app.application.processor as processor_mod' without re-importing.
+sys.modules.pop("app", None)
+sys.path[0] = str(Path(__file__).resolve().parents[1] / "services" / "risk" / "api")
+from app.api import deps, routes_events_v2  # noqa: E402
+from app.infrastructure.db import get_db_session  # noqa: E402
+from risk_common.schemas_v2 import AuthClaims  # noqa: E402
 
 
 def _claims(tenant_id: str = "tenant-a", scopes: list[str] | None = None) -> AuthClaims:
