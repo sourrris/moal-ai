@@ -1,7 +1,7 @@
 import logging
 from datetime import timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_rabbit_channel, require_scope
@@ -93,7 +93,7 @@ async def _ingest_single_event(
     return EventIngestResult(event_id=event.event_id, status="accepted", queued=True)
 
 
-@router.post("/ingest", response_model=EventIngestResult)
+@router.post("/ingest", response_model=EventIngestResult, status_code=status.HTTP_202_ACCEPTED)
 async def ingest_event_v2(
     payload: RiskEventIngestRequest,
     claims: AuthClaims = Depends(require_scope("events:write")),
@@ -108,7 +108,7 @@ async def ingest_event_v2(
         raise HTTPException(status_code=500, detail=f"Unable to ingest event: {exc}") from exc
 
 
-@router.post("/ingest/batch", response_model=BatchIngestResult)
+@router.post("/ingest/batch", response_model=BatchIngestResult, status_code=status.HTTP_202_ACCEPTED)
 async def ingest_event_batch_v2(
     payload: RiskEventBatchIngestRequest,
     claims: AuthClaims = Depends(require_scope("events:write")),

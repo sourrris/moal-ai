@@ -37,7 +37,16 @@ def _coerce_json_object(value: object) -> dict:
 
 class UserRepository:
     ROLE_DEFAULT_SCOPES: dict[str, list[str]] = {
-        "admin": ["events:write", "events:read", "alerts:write", "alerts:read", "models:read", "models:write", "connectors:read"],
+        "admin": [
+            "events:write", "events:read",
+            "alerts:write", "alerts:read",
+            "models:read", "models:write",
+            "connectors:read",
+            "control:tenants:read", "control:tenants:write",
+            "control:config:read", "control:config:write",
+            "control:routing:read", "control:routing:write",
+            "control:reports:read", "control:testlab:write",
+        ],
         "analyst": ["events:read", "alerts:read", "alerts:write", "models:read"],
         "viewer": ["events:read", "alerts:read", "models:read"],
     }

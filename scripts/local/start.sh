@@ -43,7 +43,15 @@ apply_migrations() {
   )
 }
 
+maintain_partitions() {
+  echo "Ensuring events_v2 partitions..."
+  "$ROOT_DIR/scripts/local/maintain-partitions.sh" || {
+    echo "WARNING: Failed to ensure events_v2 partitions. v2 event ingest may fail." >&2
+  }
+}
+
 apply_migrations
+maintain_partitions
 
 start_detached() {
   local work_dir="$1"

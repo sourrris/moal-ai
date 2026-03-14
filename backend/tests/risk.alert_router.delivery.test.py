@@ -6,7 +6,6 @@ import hashlib
 import hmac
 import json
 import sys
-import unittest.mock
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -16,7 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk" / "alert_router"))
 
-from app.application.router import AlertRouter, _deliver_to_destination, _send_email
+from app.application.router import AlertRouter, _deliver_to_destination
 from app.config import get_settings
 
 settings = get_settings()

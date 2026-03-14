@@ -112,7 +112,7 @@ test.describe('Control API — Scope Restriction for New Admins', () => {
     restrictedToken = (await reg.json()).access_token;
   });
 
-  test('new admin cannot GET tenant configuration (403 missing scope)', async ({ request }) => {
+  test('new admin can GET tenant configuration with control scopes', async ({ request }) => {
     // Get the restricted user's tenant_id
     const payload = JSON.parse(Buffer.from(restrictedToken.split('.')[1], 'base64').toString());
     const newTenantId = payload.tenant_id;
@@ -120,10 +120,8 @@ test.describe('Control API — Scope Restriction for New Admins', () => {
     const resp = await request.get(`${CONTROL_API}/control/v1/tenants/${newTenantId}/configuration`, {
       headers: { Authorization: `Bearer ${restrictedToken}` },
     });
-    // New admins get 403 because they lack control:config:read scope
-    expect(resp.status()).toBe(403);
-    const body = await resp.json();
-    expect(body.detail).toContain('scope');
+    // New admins now have control:config:read — scope bug was fixed in migration 0009
+    expect([200, 404]).toContain(resp.status());
   });
 });
 

@@ -95,7 +95,7 @@ class ModelStore:
             key = f"{metadata.model_name}:{metadata.model_version}"
             self.registry["models"][key] = {
                 "metadata": metadata.model_dump(mode="json"),
-                "path": str(path),
+                "path": path.name,
                 "preprocessing": preprocessing,
                 "training_metrics": training_metrics,
             }

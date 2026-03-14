@@ -58,13 +58,13 @@ function makeV2Event(idempotencySuffix = '') {
 }
 
 test.describe('Event Ingestion — v1', () => {
-  test('POST /v1/events/ingest returns 200 accepted', async ({ request }) => {
+  test('POST /v1/events/ingest returns 202 accepted', async ({ request }) => {
     const resp = await request.post(`${API}/v1/events/ingest`, {
       headers: { Authorization: `Bearer ${token}` },
       data: makeV1Event('a'),
     });
-    // v1 ingest returns 200 (not 202) with status "accepted"
-    expect(resp.status(), `v1 ingest failed: ${await resp.text()}`).toBe(200);
+    // v1 ingest returns 202 Accepted (queued asynchronously)
+    expect(resp.status(), `v1 ingest failed: ${await resp.text()}`).toBe(202);
     const body = await resp.json();
     expect(body).toHaveProperty('event_id');
     expect(body.status).toBe('accepted');
@@ -77,37 +77,37 @@ test.describe('Event Ingestion — v1', () => {
     expect(resp.status()).toBe(401);
   });
 
-  test('POST /v1/events/ingest with wrong feature dim returns 200 or 422', async ({ request }) => {
+  test('POST /v1/events/ingest with wrong feature dim returns 202 or 422', async ({ request }) => {
     const event = { ...makeV1Event('badfeatures'), features: [0.1, 0.2] };
     const resp = await request.post(`${API}/v1/events/ingest`, {
       headers: { Authorization: `Bearer ${token}` },
       data: event,
     });
-    // Might accept at ingest layer and fail at ML layer (200), or validate immediately (422)
-    expect([200, 422]).toContain(resp.status());
+    // Might accept at ingest layer and fail at ML layer (202), or validate immediately (422)
+    expect([202, 422]).toContain(resp.status());
   });
 });
 
 test.describe('Event Ingestion — v2', () => {
-  test('POST /v2/events/ingest returns 200 accepted', async ({ request }) => {
+  test('POST /v2/events/ingest returns 202 accepted', async ({ request }) => {
     const resp = await request.post(`${API}/v2/events/ingest`, {
       headers: { Authorization: `Bearer ${token}` },
       data: makeV2Event('single'),
     });
-    // v2 ingest also returns 200 (not 202) with status "accepted"
-    expect(resp.status(), `v2 ingest failed: ${await resp.text()}`).toBe(200);
+    // v2 ingest returns 202 Accepted (queued asynchronously)
+    expect(resp.status(), `v2 ingest failed: ${await resp.text()}`).toBe(202);
     const body = await resp.json();
     expect(body).toHaveProperty('event_id');
     expect(body.status).toBe('accepted');
   });
 
-  test('POST /v2/events/ingest/batch returns 200', async ({ request }) => {
+  test('POST /v2/events/ingest/batch returns 202', async ({ request }) => {
     const resp = await request.post(`${API}/v2/events/ingest/batch`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { events: [makeV2Event('b1'), makeV2Event('b2')] },
     });
-    // Batch also returns 200 (not 202)
-    expect(resp.status(), `v2 batch failed: ${await resp.text()}`).toBe(200);
+    // Batch returns 202 Accepted (queued asynchronously)
+    expect(resp.status(), `v2 batch failed: ${await resp.text()}`).toBe(202);
     const body = await resp.json();
     expect(body).toHaveProperty('accepted');
     expect(body.accepted).toBeGreaterThan(0);
@@ -126,16 +126,16 @@ test.describe('Event Ingestion — v2', () => {
       headers: { Authorization: `Bearer ${token}` },
       data: event,
     });
-    expect(r1.status()).toBe(200);
+    expect(r1.status()).toBe(202);
     const b1 = await r1.json();
     expect(b1.status).toBe('accepted');
 
-    // Second call with same idempotency_key — returns 200 with status "duplicate"
+    // Second call with same idempotency_key — returns 202 with status "duplicate"
     const r2 = await request.post(`${API}/v2/events/ingest`, {
       headers: { Authorization: `Bearer ${token}` },
       data: event,
     });
-    expect(r2.status()).toBe(200);
+    expect(r2.status()).toBe(202);
     const b2 = await r2.json();
     expect(b2.status).toBe('duplicate');
   });

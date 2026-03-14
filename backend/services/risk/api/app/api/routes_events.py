@@ -1,7 +1,8 @@
 from uuid import UUID
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_subject, get_rabbit_channel
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/v1/events", tags=["events"])
 settings = get_settings()
 
 
-@router.post("/ingest")
+@router.post("/ingest", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_event(
     payload: EventIngestRequest,
     subject: str = Depends(get_current_subject),
@@ -26,11 +27,14 @@ async def ingest_event(
     envelope = EventEnvelope(**payload.model_dump())
     created = await EventIngestionService.persist_event(session, envelope, submitted_by=subject)
     if not created:
-        return {
-            "status": "duplicate",
-            "event_id": str(envelope.event_id),
-            "message": "Event already exists and will not be re-queued.",
-        }
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "status": "duplicate",
+                "event_id": str(envelope.event_id),
+                "message": "Event already exists and will not be re-queued.",
+            },
+        )
 
     await publish_json_with_compat(
         channel=channel,
