@@ -239,7 +239,7 @@ Connector control endpoints:
 
 ## CI Baseline (PR1)
 - GitHub Actions workflow: `.github/workflows/ci.yml`
-- `risk.api-quality-gate`: security scan, backend lint/type/tests, migration validation, frontend test/build, kustomize validation
+- `risk.api-quality-gate`: security scan, backend tests/audits, migration validation, frontend test/build, kustomize validation
 - `risk.api-build-gate`: docker build sanity for all service images
 
 Dependency and security posture notes are tracked in `docs/engineering.audit.pr1-ci-baseline.md`.
