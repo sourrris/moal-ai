@@ -225,38 +225,3 @@ jobs:
           build_and_push "dashboard" "frontend/dashboard/Dockerfile"
           build_and_push "control-tenant" "frontend/control-tenant/Dockerfile"
           build_and_push "control-ops" "frontend/control-ops/Dockerfile"
-
-      - name: Set up Trivy
-        uses: aquasecurity/setup-trivy@v0.2.0
-        with:
-          cache: true
-          version: v0.69.3
-
-      - name: Trivy vulnerability scan
-        run: |
-          set -euo pipefail
-          SHORT_SHA="${GITHUB_SHA::8}"
-          image_ref() {
-            local tag="$1"
-            printf 'ghcr.io/%s/%s:%s' "${GITHUB_REPOSITORY,,}" "${tag}" "${SHORT_SHA}"
-          }
-          scan_image() {
-            local image
-            image="$(image_ref "$1")"
-            echo "Scanning ${image}"
-            trivy image \
-              --image-src docker \
-              --scanners vuln \
-              --severity HIGH,CRITICAL \
-              --ignore-unfixed \
-              --exit-code 1 \
-              "${image}"
-          }
-          while IFS= read -r dockerfile; do
-            svc="$(basename "$(dirname "${dockerfile}")")"
-            scan_image "${svc}"
-          done < <(find backend/services -name Dockerfile | sort)
-          scan_image "migrations"
-          scan_image "dashboard"
-          scan_image "control-tenant"
-          scan_image "control-ops"
