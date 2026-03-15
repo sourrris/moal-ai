@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from risk_common.schemas_v2 import RiskEventV2
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db import set_tenant_context
-from risk_common.schemas_v2 import RiskEventV2
 
 
 class EventEnrichmentService:

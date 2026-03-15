@@ -2,11 +2,11 @@ import logging
 from typing import Any
 
 import httpx
+from risk_common.schemas import EventEnvelope
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.infrastructure.monitoring_repository import EventRepository
-from risk_common.schemas import EventEnvelope
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

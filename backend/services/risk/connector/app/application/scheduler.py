@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.connectors import BaseConnector, ConnectorResult, default_connectors
 from app.config import get_settings
-from app.infrastructure.db import SessionLocal
 from app.infrastructure.connector_repository import ConnectorRepository
+from app.infrastructure.db import SessionLocal
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

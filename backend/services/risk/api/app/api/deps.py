@@ -1,12 +1,12 @@
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from risk_common.schemas_v2 import AuthClaims
+from risk_common.security import decode_access_token
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.infrastructure.db import get_db_session
 from app.infrastructure.tenant_setup_repository import TenantKeyRepository
-from risk_common.security import decode_access_token
-from risk_common.schemas_v2 import AuthClaims
 
 security = HTTPBearer(auto_error=False)
 settings = get_settings()

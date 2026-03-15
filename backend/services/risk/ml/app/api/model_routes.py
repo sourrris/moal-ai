@@ -1,10 +1,16 @@
-from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+from risk_common.schemas import (
+    InferenceRequest,
+    InferenceResponse,
+    ModelMetadata,
+    ModelTrainingResult,
+    ModelTrainRequest,
+)
 
 from app.application.model_inference_service import InferenceService
 from app.application.standardized_pipeline import StandardizedInferenceRequest
 from app.infrastructure.model_store import ModelActivationError
-from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainingResult, ModelTrainRequest
 
 router = APIRouter(prefix="/v1", tags=["ml"])
 

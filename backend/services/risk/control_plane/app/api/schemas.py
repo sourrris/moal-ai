@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-
 ALERT_CHANNEL = Literal["webhook", "email", "slack"]
 
 

@@ -6,7 +6,6 @@ import hmac
 import json
 import logging
 import smtplib
-from datetime import UTC, datetime
 from email.message import EmailMessage
 from typing import Any
 from uuid import UUID, uuid4

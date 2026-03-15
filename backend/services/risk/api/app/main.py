@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 
 import sentry_sdk
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
+from risk_common.logging import configure_logging
+from risk_common.messaging import connect, setup_topology
+from risk_common.schemas import HealthResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -12,24 +14,21 @@ from slowapi.util import get_remote_address
 
 from app.api import (
     routes_alerts,
+    routes_alerts_v2,
     routes_auth,
     routes_auth_v2,
-    routes_events,
-    routes_models,
-    routes_overview,
-    routes_alerts_v2,
     routes_data_sources_v2,
+    routes_events,
     routes_events_v2,
+    routes_models,
     routes_models_v2,
+    routes_overview,
+    routes_platform_v1,
     routes_risk_decisions_v2,
     routes_setup,
-    routes_platform_v1,
 )
 from app.config import get_settings
 from app.infrastructure.db import check_db_health
-from risk_common.logging import configure_logging
-from risk_common.messaging import connect, setup_topology
-from risk_common.schemas import HealthResponse
 
 settings = get_settings()
 if settings.sentry_dsn:

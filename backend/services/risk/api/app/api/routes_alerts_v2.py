@@ -1,12 +1,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from risk_common.schemas_v2 import AlertLifecycleUpdate, AlertV2, AuthClaims
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
 from app.infrastructure.db import get_db_session
 from app.infrastructure.operational_repository_v2 import AlertV2Repository
-from risk_common.schemas_v2 import AlertLifecycleUpdate, AlertV2, AuthClaims
 
 router = APIRouter(prefix="/v2/alerts", tags=["alerts-v2"])
 

@@ -1,6 +1,13 @@
-from app.infrastructure.model_store import ModelStore
+from risk_common.schemas import (
+    InferenceRequest,
+    InferenceResponse,
+    ModelMetadata,
+    ModelTrainingResult,
+    ModelTrainRequest,
+)
+
 from app.application.standardized_pipeline import StandardizedInferenceRequest, derive_features
-from risk_common.schemas import InferenceRequest, InferenceResponse, ModelMetadata, ModelTrainingResult, ModelTrainRequest
+from app.infrastructure.model_store import ModelStore
 
 
 class InferenceService:

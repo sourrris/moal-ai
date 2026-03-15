@@ -2,15 +2,15 @@ import asyncio
 import json
 import math
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import tensorflow as tf
+from risk_common.schemas import InferenceResponse, ModelMetadata, ModelTrainingResult
 
 from app.domain.entities import LoadedModel
-from risk_common.schemas import InferenceResponse, ModelMetadata, ModelTrainingResult
 
 
 class ModelActivationError(ValueError):
@@ -379,7 +379,7 @@ class ModelStore:
         clamped_quantile = float(np.clip(threshold_quantile, 0.5, 0.9999))
         threshold = float(np.quantile(val_error, clamped_quantile))
 
-        version = datetime.now(tz=timezone.utc).strftime("%Y%m%d%H%M%S")
+        version = datetime.now(tz=UTC).strftime("%Y%m%d%H%M%S")
         model_path = self.model_dir / f"{model_name}_{version}.keras"
         model.save(model_path)
 

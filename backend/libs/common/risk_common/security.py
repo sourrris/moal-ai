@@ -1,11 +1,11 @@
 import base64
-from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
-from jose import JWTError, jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from jose import JWTError, jwt
 
 
 def create_access_token(
@@ -18,7 +18,7 @@ def create_access_token(
     scopes: list[str] | None = None,
     extra_claims: dict[str, Any] | None = None,
 ) -> str:
-    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=expires_minutes)
+    expire = datetime.now(tz=UTC) + timedelta(minutes=expires_minutes)
     payload = {"sub": subject, "exp": expire}
     if tenant_id:
         payload["tenant_id"] = tenant_id
@@ -42,7 +42,7 @@ def create_refresh_token(
     session_id: str | None = None,
     token_id: str | None = None,
 ) -> str:
-    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=expires_minutes)
+    expire = datetime.now(tz=UTC) + timedelta(minutes=expires_minutes)
     payload = {
         "sub": subject,
         "tenant_id": tenant_id,

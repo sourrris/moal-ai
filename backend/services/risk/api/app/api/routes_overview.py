@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,7 @@ async def overview_metrics(
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
     hours = WINDOW_TO_HOURS.get(window, 24)
-    from_ts = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+    from_ts = datetime.now(tz=UTC) - timedelta(hours=hours)
     return await MonitoringRepository.overview_metrics(
         session,
         tenant_id=tenant_id,

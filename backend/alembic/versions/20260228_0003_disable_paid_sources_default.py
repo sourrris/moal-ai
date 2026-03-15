@@ -5,7 +5,6 @@ Revises: 20260228_0002
 Create Date: 2026-02-28 23:40:00.000000
 """
 
-from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20260228_0003"

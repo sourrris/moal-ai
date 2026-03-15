@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5175",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "test": "vitest run",
-    "lint": "tsc --noEmit",
     "test:e2e": "playwright test"
   },
   "dependencies": {

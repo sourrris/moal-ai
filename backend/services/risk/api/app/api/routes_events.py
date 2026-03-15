@@ -1,8 +1,10 @@
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
+from risk_common.messaging import publish_json_with_compat
+from risk_common.schemas import EventEnvelope, EventIngestRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_subject, get_rabbit_channel
@@ -10,8 +12,6 @@ from app.application.risk_event_service import EventIngestionService
 from app.config import get_settings
 from app.infrastructure.db import get_db_session
 from app.infrastructure.monitoring_repository import EventRepository
-from risk_common.messaging import publish_json_with_compat
-from risk_common.schemas import EventEnvelope, EventIngestRequest
 
 router = APIRouter(prefix="/v1/events", tags=["events"])
 settings = get_settings()

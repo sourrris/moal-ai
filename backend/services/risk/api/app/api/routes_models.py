@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-import math
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from risk_common.schemas import (
+    ModelListItem,
+    ModelMetadata,
+    ModelMetricsResponse,
+    ModelsListResponse,
+    ModelTrainRequest,
+    ModelTrainResponse,
+)
+from risk_common.schemas_v2 import AuthClaims, ModelTrainingRun
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
@@ -13,15 +23,6 @@ from app.config import get_settings
 from app.infrastructure.db import get_db_session
 from app.infrastructure.monitoring_repository import ModelRepository
 from app.infrastructure.operational_repository_v2 import ModelOpsRepository
-from risk_common.schemas import (
-    ModelListItem,
-    ModelMetadata,
-    ModelMetricsResponse,
-    ModelTrainRequest,
-    ModelTrainResponse,
-    ModelsListResponse,
-)
-from risk_common.schemas_v2 import AuthClaims, ModelTrainingRun
 
 router = APIRouter(prefix="/v1/models", tags=["models"])
 settings = get_settings()

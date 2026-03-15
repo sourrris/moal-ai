@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
+
 from risk_common.schemas import EventEnvelope
 from risk_common.schemas_v2 import RiskEventIngestRequest, RiskEventV2, TransactionPayload
 
@@ -20,7 +21,7 @@ class StandardizedTransaction(BaseModel):
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
-    def from_event_v2(cls, event: RiskEventV2) -> "StandardizedTransaction":
+    def from_event_v2(cls, event: RiskEventV2) -> StandardizedTransaction:
         tx = event.transaction
         counterparty = tx.merchant_id or tx.user_email_hash or tx.transaction_id
         metadata = dict(tx.metadata)
@@ -44,7 +45,7 @@ class StandardizedTransaction(BaseModel):
         )
 
     @classmethod
-    def from_event_envelope(cls, event: EventEnvelope) -> "StandardizedTransaction":
+    def from_event_envelope(cls, event: EventEnvelope) -> StandardizedTransaction:
         payload = dict(event.payload)
         counterparty = payload.get("merchant_id") or payload.get("user_email_hash") or payload.get("counterparty_id")
         amount_raw = payload.get("amount", 0.0)

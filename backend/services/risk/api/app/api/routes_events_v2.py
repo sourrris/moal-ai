@@ -1,14 +1,7 @@
 import logging
-from datetime import timezone
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.api.deps import get_rabbit_channel, require_scope
-from app.application.risk_event_service import EventIngestionService
-from app.config import get_settings
-from app.infrastructure.db import get_db_session
-from app.infrastructure.operational_repository_v2 import EventV2Repository
 from risk_common.messaging import publish_json_with_compat
 from risk_common.schemas import EventEnvelope
 from risk_common.schemas_v2 import (
@@ -19,6 +12,13 @@ from risk_common.schemas_v2 import (
     RiskEventIngestRequest,
     RiskEventV2,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_rabbit_channel, require_scope
+from app.application.risk_event_service import EventIngestionService
+from app.config import get_settings
+from app.infrastructure.db import get_db_session
+from app.infrastructure.operational_repository_v2 import EventV2Repository
 
 router = APIRouter(prefix="/v2/events", tags=["events-v2"])
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ async def _ingest_single_event(
     channel,
 ) -> EventIngestResult:
     if payload.occurred_at.tzinfo is None:
-        payload.occurred_at = payload.occurred_at.replace(tzinfo=timezone.utc)
+        payload.occurred_at = payload.occurred_at.replace(tzinfo=UTC)
 
     event = RiskEventV2(
         event_id=payload.event_id,
@@ -122,7 +122,7 @@ async def ingest_event_batch_v2(
 
     for item in payload.events:
         if item.occurred_at.tzinfo is None:
-            item.occurred_at = item.occurred_at.replace(tzinfo=timezone.utc)
+            item.occurred_at = item.occurred_at.replace(tzinfo=UTC)
         try:
             result = await _ingest_single_event(item, claims, session, channel)
             if result.status == "accepted":

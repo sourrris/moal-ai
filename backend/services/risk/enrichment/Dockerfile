@@ -10,7 +10,8 @@ COPY backend/services/risk/requirements.base.txt /app/services/risk/requirements
 COPY backend/services/risk/enrichment/requirements.txt /app/services/risk/enrichment/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r /app/services/risk/enrichment/requirements.txt \
-    && pip install --no-cache-dir -e /app/libs/common
+    && pip install --no-cache-dir -e /app/libs/common \
+    && pip uninstall --yes setuptools wheel
 
 COPY backend/services/risk/enrichment /app/service
 WORKDIR /app/service

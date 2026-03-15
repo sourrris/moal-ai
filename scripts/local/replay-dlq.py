@@ -26,7 +26,7 @@ async def replay(limit: int, dry_run: bool, queue_name: str) -> int:
         while replayed < limit:
             try:
                 message = await queue.get(timeout=1, fail=False)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 break
             if message is None:
                 break

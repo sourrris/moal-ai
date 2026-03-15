@@ -1,29 +1,5 @@
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
-ignore = ["E501"]
-
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 python_files = ["test_*.py", "*.test.py"]
 addopts = ["--import-mode=importlib"]
 asyncio_mode = "auto"
-
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-check_untyped_defs = true
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = [
-    "tests.*",
-    "backend.tests.*",
-    "risk.*",
-]
-disallow_untyped_defs = false

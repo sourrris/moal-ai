@@ -11,7 +11,8 @@ COPY backend/services/risk/api/requirements.txt /app/services/risk/api/requireme
 COPY aegis-connectors/python /app/aegis-connectors/python
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r /app/services/risk/api/requirements.txt \
-    && pip install --no-cache-dir -e /app/libs/common
+    && pip install --no-cache-dir -e /app/libs/common \
+    && pip uninstall --yes setuptools wheel
 
 COPY backend/services/risk/api /app/service
 WORKDIR /app/service

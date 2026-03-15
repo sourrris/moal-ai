@@ -267,7 +267,9 @@ class ConnectorRepository:
     async def upsert_sanctions_entities(session: AsyncSession, source_name: str, names: list[str]) -> int:
         upserts = 0
         for idx, name in enumerate(names):
-            stable_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:20]  # nosec B324 — non-crypto stable ID, not security-sensitive
+            # nosec B324
+            # SHA-1 is used only to derive a stable, non-cryptographic identifier.
+            stable_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:20]
             entity_id = f"{source_name}:{idx}:{stable_hash}"
             await session.execute(
                 text(
@@ -294,7 +296,9 @@ class ConnectorRepository:
     async def upsert_pep_entities(session: AsyncSession, source_name: str, names: list[str]) -> int:
         upserts = 0
         for idx, name in enumerate(names):
-            stable_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:20]  # nosec B324 — non-crypto stable ID, not security-sensitive
+            # nosec B324
+            # SHA-1 is used only to derive a stable, non-cryptographic identifier.
+            stable_hash = hashlib.sha1(name.encode("utf-8")).hexdigest()[:20]
             entity_id = f"{source_name}:{idx}:{stable_hash}"
             await session.execute(
                 text(
