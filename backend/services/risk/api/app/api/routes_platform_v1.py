@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from risk_common.connector_abstractions import BaseConnector, connector_registry, load_connector_from_config, register_connector
+from risk_common.connector_abstractions import (
+    BaseConnector,
+    connector_registry,
+    load_connector_from_config,
+    register_connector,
+)
 from risk_common.platform_schema import StandardizedTransaction
+from risk_common.schemas_v2 import AuthClaims, EventIngestResult
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +24,6 @@ from app.config import get_settings
 from app.infrastructure.db import get_db_session
 from app.infrastructure.monitoring_repository import MonitoringRepository
 from app.infrastructure.operational_repository_v2 import AlertV2Repository
-from risk_common.schemas_v2 import AuthClaims, EventIngestResult
 
 router = APIRouter(prefix="/api/v1", tags=["platform-api-v1"])
 settings = get_settings()
@@ -86,7 +91,7 @@ class GenericTransactionConnector(BaseConnector):
         elif isinstance(timestamp, datetime):
             occurred_at = timestamp
         else:
-            occurred_at = datetime.now(tz=timezone.utc)
+            occurred_at = datetime.now(tz=UTC)
 
         return StandardizedTransaction(
             transaction_id=str(payload["transaction_id"]),
@@ -193,7 +198,7 @@ async def metrics_platform(
 ) -> dict:
     window_to_hours = {"1h": 1, "24h": 24, "7d": 24 * 7}
     hours = window_to_hours.get(window, 24)
-    from_ts = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+    from_ts = datetime.now(tz=UTC) - timedelta(hours=hours)
     return await MonitoringRepository.overview_metrics(
         session,
         tenant_id=claims.tenant_id,

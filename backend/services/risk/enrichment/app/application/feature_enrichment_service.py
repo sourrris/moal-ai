@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import time
 
-import httpx
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession

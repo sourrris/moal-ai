@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from risk_common.connector_abstractions import BaseConnector, register_connector
@@ -26,7 +26,7 @@ class MempoolIngestConnector(BaseConnector):
             source="mempool_bitcoin",
             amount=float(payload["value"]) / 100_000_000.0,
             currency="BTC",
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             counterparty_id=str(payload.get("address")) if payload.get("address") else None,
             metadata_json={
                 "vsize": payload.get("vsize"),
@@ -57,7 +57,7 @@ class AbuseChIngestConnector(BaseConnector):
             source="abusech_ip",
             amount=float(payload.get("amount") or 1.0),
             currency=str(payload.get("currency") or "USD"),
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             counterparty_id=str(payload.get("threat")) if payload.get("threat") else None,
             metadata_json={
                 "source_ip": payload.get("dst_ip"),

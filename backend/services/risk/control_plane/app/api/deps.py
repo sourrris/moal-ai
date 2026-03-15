@@ -2,10 +2,10 @@ from collections.abc import Iterable
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-from app.config import get_settings
 from risk_common.schemas_v2 import AuthClaims
 from risk_common.security import decode_access_token
+
+from app.config import get_settings
 
 security = HTTPBearer(auto_error=False)
 settings = get_settings()

@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, DateTime, Float, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -18,7 +19,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String(32), default="analyst")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(tz=timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(tz=UTC)
     )
 
 
@@ -35,7 +36,7 @@ class Event(Base):
     submitted_by: Mapped[str] = mapped_column(String(120), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ingested_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(tz=timezone.utc), index=True
+        DateTime(timezone=True), default=lambda: datetime.now(tz=UTC), index=True
     )
 
 
@@ -50,7 +51,7 @@ class AnomalyResult(Base):
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
     is_anomaly: Mapped[bool] = mapped_column(nullable=False)
     processed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(tz=timezone.utc), index=True
+        DateTime(timezone=True), default=lambda: datetime.now(tz=UTC), index=True
     )
 
 
@@ -63,5 +64,5 @@ class ModelRegistry(Base):
     model_metadata: Mapped[dict] = mapped_column("metadata", JSON, nullable=False)
     active: Mapped[bool] = mapped_column(default=False, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(tz=timezone.utc), index=True
+        DateTime(timezone=True), default=lambda: datetime.now(tz=UTC), index=True
     )

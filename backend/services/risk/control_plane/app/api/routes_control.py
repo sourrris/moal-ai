@@ -15,10 +15,17 @@ from uuid import UUID, uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from risk_common.schemas_v2 import AuthClaims, RiskEventIngestRequest
+from risk_common.security import create_access_token
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import enforce_tenant_access, is_platform_operator, require_any_scope, require_scope
+from app.api.deps import (
+    enforce_tenant_access,
+    is_platform_operator,
+    require_any_scope,
+    require_scope,
+)
 from app.api.schemas import (
     AlertDestinationCreateRequest,
     AlertDestinationDTO,
@@ -50,8 +57,6 @@ from app.api.schemas import (
 from app.config import get_settings
 from app.infrastructure.db import get_db_session
 from app.infrastructure.repository import ALLOWED_RULE_KEYS, ControlRepository
-from risk_common.schemas_v2 import AuthClaims, RiskEventIngestRequest
-from risk_common.security import create_access_token
 
 router = APIRouter(prefix="/control/v1", tags=["control-plane"])
 settings = get_settings()

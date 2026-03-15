@@ -1,12 +1,12 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
+from risk_common.schemas_v2 import AuthClaims, ModelDriftSnapshot, ModelTrainingRun
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
 from app.infrastructure.db import get_db_session
 from app.infrastructure.operational_repository_v2 import ModelOpsRepository
-from risk_common.schemas_v2 import AuthClaims, ModelDriftSnapshot, ModelTrainingRun
 
 router = APIRouter(prefix="/v2/models", tags=["models-v2"])
 

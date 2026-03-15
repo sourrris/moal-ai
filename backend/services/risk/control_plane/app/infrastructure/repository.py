@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db import set_tenant_context
 
-
 ALLOWED_RULE_KEYS = {
     "high_amount_threshold",
     "high_amount_weight",

@@ -1,12 +1,12 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from risk_common.schemas_v2 import AuthClaims, RiskDecisionV2
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
 from app.infrastructure.db import get_db_session
 from app.infrastructure.operational_repository_v2 import RiskDecisionRepository
-from risk_common.schemas_v2 import AuthClaims, RiskDecisionV2
 
 router = APIRouter(prefix="/v2/risk-decisions", tags=["risk-decisions-v2"])
 

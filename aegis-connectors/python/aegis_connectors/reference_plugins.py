@@ -8,10 +8,9 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 
 import httpx
-from risk_common.schemas_v2 import RiskEventIngestRequest, TransactionPayload
-
-from app.config import get_settings
 from app.application.connectors import BaseConnector, ConnectorResult, register_reference_connector
+from app.config import get_settings
+from risk_common.schemas_v2 import RiskEventIngestRequest, TransactionPayload
 
 settings = get_settings()
 

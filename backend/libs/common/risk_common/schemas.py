@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Generic, Literal, TypeVar
 from uuid import UUID, uuid4
 
@@ -17,7 +17,7 @@ class EventIngestRequest(BaseModel):
     event_type: str
     payload: dict[str, Any] = Field(default_factory=dict)
     features: list[float]
-    occurred_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 class EventEnvelope(BaseModel):
@@ -28,7 +28,7 @@ class EventEnvelope(BaseModel):
     payload: dict[str, Any]
     features: list[float]
     occurred_at: datetime
-    ingested_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 class InferenceRequest(BaseModel):
@@ -55,7 +55,7 @@ class AlertMessage(BaseModel):
     model_version: str
     anomaly_score: float
     threshold: float
-    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 T = TypeVar("T")
@@ -63,7 +63,7 @@ T = TypeVar("T")
 
 class WebSocketEnvelope(BaseModel, Generic[T]):
     type: str
-    occurred_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
     data: T
 
 
@@ -101,7 +101,7 @@ class ModelMetadata(BaseModel):
     model_version: str
     feature_dim: int
     threshold: float
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 class ModelListItem(BaseModel):
@@ -174,7 +174,7 @@ class ModelTrainingResult(BaseModel):
     model_version: str
     feature_dim: int
     threshold: float
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
     sample_count: int
     auto_activated: bool = False
     training_metrics: dict[str, Any] = Field(default_factory=dict)

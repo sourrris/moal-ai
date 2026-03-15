@@ -21,8 +21,15 @@ from app.application.rules_engine import RulesEngine, infer_risk_level
 from app.config import get_settings
 from app.infrastructure.db import SessionLocal
 from app.infrastructure.event_repository import mark_failed, persist_inference
-from app.infrastructure.event_repository_v2 import mark_failed_v2, persist_decision, persist_enrichment
-from app.infrastructure.tenant_config_repository import TenantConfigRepository, TenantProcessingConfig
+from app.infrastructure.event_repository_v2 import (
+    mark_failed_v2,
+    persist_decision,
+    persist_enrichment,
+)
+from app.infrastructure.tenant_config_repository import (
+    TenantConfigRepository,
+    TenantProcessingConfig,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

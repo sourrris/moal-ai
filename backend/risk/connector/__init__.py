@@ -1,5 +1,10 @@
 from .base_connector import BaseConnector
-from .registry import ConnectorRegistry, connector_registry, load_connector_from_config, register_connector
+from .registry import (
+    ConnectorRegistry,
+    connector_registry,
+    load_connector_from_config,
+    register_connector,
+)
 
 __all__ = [
     "BaseConnector",

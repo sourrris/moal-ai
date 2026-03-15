@@ -3,13 +3,13 @@ from contextlib import asynccontextmanager
 import sentry_sdk
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
+from risk_common.logging import configure_logging
+from risk_common.schemas import HealthResponse
 
 from app.api.model_routes import router as ml_router
 from app.application.model_inference_service import InferenceService
 from app.config import get_settings
 from app.infrastructure.model_store import ModelStore
-from risk_common.logging import configure_logging
-from risk_common.schemas import HealthResponse
 
 settings = get_settings()
 if settings.sentry_dsn:
