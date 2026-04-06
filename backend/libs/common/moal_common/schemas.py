@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, model_validator
@@ -10,30 +10,96 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class EventIngestRequest(BaseModel):
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+
+
+# -- Behavior Events --
+
+class BehaviorEventIngest(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
-    tenant_id: str
-    source: str
-    event_type: str
-    payload: dict[str, Any] = Field(default_factory=dict)
-    features: list[float]
+    user_identifier: str = Field(min_length=1, max_length=255)
+    event_type: str = Field(min_length=1, max_length=64)  # auth, api_call, session
+    source: str = Field(min_length=1, max_length=120)
+    source_ip: str | None = None
+    user_agent: str | None = None
+    geo_country: str | None = Field(default=None, max_length=8)
+    geo_city: str | None = Field(default=None, max_length=120)
+    session_duration_seconds: int | None = None
+    request_count: int = 0
+    failed_auth_count: int = 0
+    bytes_transferred: int = 0
+    endpoint: str | None = Field(default=None, max_length=512)
+    status_code: int | None = None
+    device_fingerprint: str | None = Field(default=None, max_length=255)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
-class EventEnvelope(BaseModel):
+class BehaviorEventResponse(BaseModel):
     event_id: UUID
-    tenant_id: str
-    source: str
+    user_identifier: str
     event_type: str
-    payload: dict[str, Any]
-    features: list[float]
+    source: str
+    source_ip: str | None = None
+    geo_country: str | None = None
+    geo_city: str | None = None
+    session_duration_seconds: int | None = None
+    request_count: int = 0
+    failed_auth_count: int = 0
+    endpoint: str | None = None
+    status_code: int | None = None
+    device_fingerprint: str | None = None
+    anomaly_score: float | None = None
+    is_anomaly: bool | None = None
     occurred_at: datetime
-    ingested_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
+    ingested_at: datetime
 
+
+class EventIngestResult(BaseModel):
+    event_id: UUID
+    status: str  # accepted, duplicate, failed
+    anomaly_score: float | None = None
+    is_anomaly: bool | None = None
+
+
+class BatchEventIngest(BaseModel):
+    events: list[BehaviorEventIngest] = Field(min_length=1, max_length=500)
+
+
+class BatchIngestResult(BaseModel):
+    accepted: int
+    duplicates: int
+    failed: int
+    results: list[EventIngestResult]
+
+
+# -- Alerts --
+
+class AlertResponse(BaseModel):
+    alert_id: UUID
+    event_id: UUID
+    severity: str
+    anomaly_score: float
+    threshold: float
+    model_name: str
+    model_version: str
+    state: str
+    user_identifier: str
+    note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AlertLifecycleUpdate(BaseModel):
+    note: str | None = Field(default=None, max_length=2000)
+
+
+# -- ML Inference --
 
 class InferenceRequest(BaseModel):
     event_id: UUID
-    tenant_id: str
     features: list[float]
 
 
@@ -46,36 +112,11 @@ class InferenceResponse(BaseModel):
     threshold: float
 
 
-class AlertMessage(BaseModel):
-    alert_id: UUID = Field(default_factory=uuid4)
-    event_id: UUID
-    tenant_id: str
-    severity: str = "high"
-    model_name: str
-    model_version: str
-    anomaly_score: float
-    threshold: float
-    created_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
-
-
-T = TypeVar("T")
-
-
-class WebSocketEnvelope(BaseModel, Generic[T]):
-    type: str
-    occurred_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
-    data: T
-
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-
+# -- Models --
 
 class ModelTrainRequest(BaseModel):
-    model_name: str = "risk_autoencoder"
+    model_name: str = "behavior_autoencoder"
     training_source: Literal["historical_events", "provided_features"] = "historical_events"
-    tenant_id: str | None = None
     lookback_hours: int = Field(default=24, ge=1, le=720)
     max_samples: int = Field(default=2048, ge=64, le=20000)
     min_samples: int = Field(default=64, ge=32, le=20000)
@@ -87,10 +128,8 @@ class ModelTrainRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_training_source(self) -> "ModelTrainRequest":
-        # Backward compatibility: existing clients pass explicit features without training_source.
         if self.features and self.training_source == "historical_events":
             self.training_source = "provided_features"
-
         if self.training_source == "provided_features" and not self.features:
             raise ValueError("features are required when training_source is 'provided_features'")
         return self
@@ -121,39 +160,6 @@ class ModelsListResponse(BaseModel):
     items: list[ModelListItem] = Field(default_factory=list)
 
 
-class ModelMetricsPoint(BaseModel):
-    bucket: datetime
-    avg_threshold: float = 0.0
-    avg_score: float = 0.0
-    volume: int = 0
-
-
-class ModelTrainingSummary(BaseModel):
-    run_id: UUID | None = None
-    model_name: str | None = None
-    model_version: str | None = None
-    status: str | None = None
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    initiated_by: str | None = None
-    sample_count: int = 0
-    train_loss: float | None = None
-    val_loss: float | None = None
-    threshold: float | None = None
-    threshold_quantile: float | None = None
-    dataset_lineage: dict[str, Any] = Field(default_factory=dict)
-    dataset_summary: dict[str, Any] = Field(default_factory=dict)
-
-
-class ModelMetricsResponse(BaseModel):
-    model_version: str
-    anomaly_hit_rate: float = 0.0
-    total_inferences: int = 0
-    inference_latency_ms: dict[str, float | None] = Field(default_factory=lambda: {"p50": None, "p95": None})
-    threshold_evolution: list[ModelMetricsPoint] = Field(default_factory=list)
-    latest_training_summary: ModelTrainingSummary | None = None
-
-
 class ModelTrainResponse(BaseModel):
     run_id: UUID
     status: Literal["running", "success", "failed"]
@@ -162,7 +168,6 @@ class ModelTrainResponse(BaseModel):
     feature_dim: int | None = None
     threshold: float | None = None
     updated_at: datetime | None = None
-    training_source: Literal["historical_events", "provided_features"] = "historical_events"
     sample_count: int = 0
     auto_activated: bool = False
     metrics: dict[str, Any] = Field(default_factory=dict)
@@ -178,3 +183,15 @@ class ModelTrainingResult(BaseModel):
     sample_count: int
     auto_activated: bool = False
     training_metrics: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelTrainingRun(BaseModel):
+    run_id: UUID
+    model_name: str
+    model_version: str | None = None
+    status: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    initiated_by: str | None = None
