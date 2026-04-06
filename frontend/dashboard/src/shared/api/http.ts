@@ -13,7 +13,7 @@ type HttpOptions = {
   headers?: Record<string, string>;
 };
 
-export class RequestError extends Error {
+class RequestError extends Error {
   status: number;
 
   constructor(status: number, message: string) {

@@ -3,8 +3,6 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '../lib/cn';
 
 export const Dialog = DialogPrimitive.Root;
-export const DialogTrigger = DialogPrimitive.Trigger;
-export const DialogClose = DialogPrimitive.Close;
 
 export function DialogContent({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
