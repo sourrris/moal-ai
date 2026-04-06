@@ -1,107 +1,178 @@
 import logging
 from datetime import UTC
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from moal_common.messaging import publish_json_with_compat
-from moal_common.schemas import EventEnvelope
-from moal_common.schemas_v2 import (
-    AuthClaims,
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from moal_common.schemas import (
+    BatchEventIngest,
     BatchIngestResult,
+    BehaviorEventIngest,
+    BehaviorEventResponse,
     EventIngestResult,
-    RiskEventBatchIngestRequest,
-    RiskEventIngestRequest,
-    RiskEventV2,
 )
+from moal_common.schemas_v2 import AuthClaims
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_rabbit_channel, require_scope
-from app.application.risk_event_service import EventIngestionService
+from app.api.deps import require_scope
+from app.application.feature_engineering import compute_features
 from app.config import get_settings
 from app.infrastructure.db import get_db_session
-from app.infrastructure.operational_repository_v2 import EventV2Repository
 
-router = APIRouter(prefix="/v2/events", tags=["events-v2"])
+router = APIRouter(prefix="/api/events", tags=["events"])
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-def _legacy_features(payload: RiskEventIngestRequest) -> list[float]:
-    if payload.features and len(payload.features) >= 8:
-        return payload.features[:8]
+async def _score_event(features: list[float]) -> dict | None:
+    """Call the ML service for anomaly scoring. Returns None if ML is unavailable."""
+    import httpx
 
-    tx = payload.transaction
-    amount_norm = min(tx.amount / 10000.0, 1.0)
-    is_cross_border = 1.0 if tx.source_country and tx.destination_country and tx.source_country != tx.destination_country else 0.0
-    has_ip = 1.0 if tx.source_ip else 0.0
-    has_bin = 1.0 if tx.card_bin else 0.0
-    has_email_hash = 1.0 if tx.user_email_hash else 0.0
-    metadata_size = min(len(tx.metadata) / 10.0, 1.0)
-    merchant_hash = (hash(tx.merchant_id or "") % 1000) / 1000.0
-    event_hash = (hash(payload.event_type) % 1000) / 1000.0
-    return [amount_norm, is_cross_border, has_ip, has_bin, has_email_hash, metadata_size, merchant_hash, event_hash]
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{settings.ml_inference_url}/v1/inference",
+                json={"event_id": "00000000-0000-0000-0000-000000000000", "features": features},
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception:  # noqa: BLE001
+        logger.warning("ML service unavailable, skipping scoring")
+    return None
 
 
-async def _ingest_single_event(
-    payload: RiskEventIngestRequest,
-    claims: AuthClaims,
+async def _ingest_single(
+    event: BehaviorEventIngest,
     session: AsyncSession,
-    channel,
 ) -> EventIngestResult:
-    if payload.occurred_at.tzinfo is None:
-        payload.occurred_at = payload.occurred_at.replace(tzinfo=UTC)
+    if event.occurred_at.tzinfo is None:
+        event.occurred_at = event.occurred_at.replace(tzinfo=UTC)
 
-    event = RiskEventV2(
-        event_id=payload.event_id,
-        idempotency_key=payload.idempotency_key,
-        tenant_id=claims.tenant_id,
-        source=payload.source,
-        event_type=payload.event_type,
-        transaction=payload.transaction,
-        occurred_at=payload.occurred_at,
-        submitted_by=claims.sub,
-        features=payload.features,
+    features = compute_features(event)
+    hour_of_day = event.occurred_at.hour
+    day_of_week = event.occurred_at.weekday()
+
+    # Insert behavior event
+    result = await session.execute(
+        text("""
+            INSERT INTO behavior_events (
+                event_id, user_identifier, event_type, source, source_ip, user_agent,
+                geo_country, geo_city, hour_of_day, day_of_week,
+                session_duration_seconds, request_count, failed_auth_count,
+                bytes_transferred, endpoint, status_code, device_fingerprint,
+                metadata, features, occurred_at
+            ) VALUES (
+                :event_id, :user_identifier, :event_type, :source, :source_ip, :user_agent,
+                :geo_country, :geo_city, :hour_of_day, :day_of_week,
+                :session_duration_seconds, :request_count, :failed_auth_count,
+                :bytes_transferred, :endpoint, :status_code, :device_fingerprint,
+                :metadata::jsonb, :features, :occurred_at
+            )
+            ON CONFLICT (event_id) DO NOTHING
+            RETURNING event_id
+        """),
+        {
+            "event_id": str(event.event_id),
+            "user_identifier": event.user_identifier,
+            "event_type": event.event_type,
+            "source": event.source,
+            "source_ip": event.source_ip,
+            "user_agent": event.user_agent,
+            "geo_country": event.geo_country,
+            "geo_city": event.geo_city,
+            "hour_of_day": hour_of_day,
+            "day_of_week": day_of_week,
+            "session_duration_seconds": event.session_duration_seconds,
+            "request_count": event.request_count,
+            "failed_auth_count": event.failed_auth_count,
+            "bytes_transferred": event.bytes_transferred,
+            "endpoint": event.endpoint,
+            "status_code": event.status_code,
+            "device_fingerprint": event.device_fingerprint,
+            "metadata": "{}",
+            "features": features,
+            "occurred_at": event.occurred_at,
+        },
     )
+    row = result.fetchone()
+    if not row:
+        return EventIngestResult(event_id=event.event_id, status="duplicate")
 
-    created = await EventV2Repository.create_if_absent(session, event)
-    if not created:
-        return EventIngestResult(event_id=event.event_id, status="duplicate", queued=False)
+    # Score with ML service (inline, synchronous)
+    ml_result = await _score_event(features)
+    anomaly_score = None
+    is_anomaly = None
 
-    legacy_envelope = EventEnvelope(
+    if ml_result:
+        anomaly_score = ml_result.get("anomaly_score")
+        is_anomaly = ml_result.get("is_anomaly", False)
+        threshold = ml_result.get("threshold", 0.0)
+        model_name = ml_result.get("model_name", "unknown")
+        model_version = ml_result.get("model_version", "unknown")
+
+        # Save anomaly result
+        await session.execute(
+            text("""
+                INSERT INTO anomaly_results (
+                    event_id, anomaly_score, threshold, is_anomaly,
+                    model_name, model_version, feature_vector
+                ) VALUES (
+                    :event_id, :anomaly_score, :threshold, :is_anomaly,
+                    :model_name, :model_version, :feature_vector
+                )
+            """),
+            {
+                "event_id": str(event.event_id),
+                "anomaly_score": anomaly_score,
+                "threshold": threshold,
+                "is_anomaly": is_anomaly,
+                "model_name": model_name,
+                "model_version": model_version,
+                "feature_vector": features,
+            },
+        )
+
+        # Create alert if anomalous
+        if is_anomaly:
+            severity = "critical" if anomaly_score > threshold * 1.5 else "high"
+            await session.execute(
+                text("""
+                    INSERT INTO alerts (
+                        event_id, severity, anomaly_score, threshold,
+                        model_name, model_version, state, user_identifier
+                    ) VALUES (
+                        :event_id, :severity, :anomaly_score, :threshold,
+                        :model_name, :model_version, 'open', :user_identifier
+                    )
+                """),
+                {
+                    "event_id": str(event.event_id),
+                    "severity": severity,
+                    "anomaly_score": anomaly_score,
+                    "threshold": threshold,
+                    "model_name": model_name,
+                    "model_version": model_version,
+                    "user_identifier": event.user_identifier,
+                },
+            )
+
+    await session.commit()
+    return EventIngestResult(
         event_id=event.event_id,
-        tenant_id=event.tenant_id,
-        source=event.source,
-        event_type=event.event_type,
-        payload=event.transaction.model_dump(mode="json"),
-        features=_legacy_features(payload),
-        occurred_at=event.occurred_at,
-        ingested_at=event.ingested_at,
+        status="accepted",
+        anomaly_score=anomaly_score,
+        is_anomaly=is_anomaly,
     )
-    await EventIngestionService.persist_event(session, legacy_envelope, submitted_by=claims.sub)
-
-    # Persist a legacy-compatible event row for monitoring surfaces, but only queue
-    # the v2 worker to avoid double-processing the same logical event.
-    await publish_json_with_compat(
-        channel=channel,
-        exchange_name=settings.rabbitmq_events_exchange,
-        routing_key=settings.rabbitmq_events_v2_routing_key,
-        payload=event.model_dump(mode="json"),
-        headers={"x-retry-count": 0, "x-schema-version": 2},
-        legacy_exchange_name=settings.rabbitmq_events_exchange_legacy,
-        legacy_routing_key=settings.rabbitmq_events_v2_routing_key_legacy,
-    )
-
-    return EventIngestResult(event_id=event.event_id, status="accepted", queued=True)
 
 
 @router.post("/ingest", response_model=EventIngestResult, status_code=status.HTTP_202_ACCEPTED)
-async def ingest_event_v2(
-    payload: RiskEventIngestRequest,
+async def ingest_event(
+    payload: BehaviorEventIngest,
     claims: AuthClaims = Depends(require_scope("events:write")),
     session: AsyncSession = Depends(get_db_session),
-    channel=Depends(get_rabbit_channel),
 ) -> EventIngestResult:
     try:
-        return await _ingest_single_event(payload, claims, session, channel)
+        return await _ingest_single(payload, session)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -109,11 +180,10 @@ async def ingest_event_v2(
 
 
 @router.post("/ingest/batch", response_model=BatchIngestResult, status_code=status.HTTP_202_ACCEPTED)
-async def ingest_event_batch_v2(
-    payload: RiskEventBatchIngestRequest,
+async def ingest_event_batch(
+    payload: BatchEventIngest,
     claims: AuthClaims = Depends(require_scope("events:write")),
     session: AsyncSession = Depends(get_db_session),
-    channel=Depends(get_rabbit_channel),
 ) -> BatchIngestResult:
     accepted = 0
     duplicates = 0
@@ -121,10 +191,8 @@ async def ingest_event_batch_v2(
     results: list[EventIngestResult] = []
 
     for item in payload.events:
-        if item.occurred_at.tzinfo is None:
-            item.occurred_at = item.occurred_at.replace(tzinfo=UTC)
         try:
-            result = await _ingest_single_event(item, claims, session, channel)
+            result = await _ingest_single(item, session)
             if result.status == "accepted":
                 accepted += 1
             elif result.status == "duplicate":
@@ -135,11 +203,60 @@ async def ingest_event_batch_v2(
         except Exception as exc:  # noqa: BLE001
             logger.error(f"Batch ingestion failed for event {item.event_id}: {exc}")
             failed += 1
-            results.append(EventIngestResult(event_id=item.event_id, status="failed", queued=False))
+            results.append(EventIngestResult(event_id=item.event_id, status="failed"))
 
-    return BatchIngestResult(
-        accepted=accepted,
-        duplicates=duplicates,
-        failed=failed,
-        results=results,
-    )
+    return BatchIngestResult(accepted=accepted, duplicates=duplicates, failed=failed, results=results)
+
+
+@router.get("", response_model=list[BehaviorEventResponse])
+async def list_events(
+    user_identifier: str | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    claims: AuthClaims = Depends(require_scope("events:read")),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[BehaviorEventResponse]:
+    conditions = []
+    params: dict = {"limit": limit, "offset": offset}
+
+    if user_identifier:
+        conditions.append("be.user_identifier = :user_identifier")
+        params["user_identifier"] = user_identifier
+    if event_type:
+        conditions.append("be.event_type = :event_type")
+        params["event_type"] = event_type
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    query = f"""
+        SELECT be.*, ar.anomaly_score, ar.is_anomaly
+        FROM behavior_events be
+        LEFT JOIN anomaly_results ar ON ar.event_id = be.event_id
+        {where}
+        ORDER BY be.occurred_at DESC
+        LIMIT :limit OFFSET :offset
+    """
+    result = await session.execute(text(query), params)
+    rows = result.mappings().all()
+    return [
+        BehaviorEventResponse(
+            event_id=row["event_id"],
+            user_identifier=row["user_identifier"],
+            event_type=row["event_type"],
+            source=row["source"],
+            source_ip=str(row["source_ip"]) if row["source_ip"] else None,
+            geo_country=row["geo_country"],
+            geo_city=row["geo_city"],
+            session_duration_seconds=row["session_duration_seconds"],
+            request_count=row["request_count"],
+            failed_auth_count=row["failed_auth_count"],
+            endpoint=row["endpoint"],
+            status_code=row["status_code"],
+            device_fingerprint=row["device_fingerprint"],
+            anomaly_score=row["anomaly_score"],
+            is_anomaly=row["is_anomaly"],
+            occurred_at=row["occurred_at"],
+            ingested_at=row["ingested_at"],
+        )
+        for row in rows
+    ]
