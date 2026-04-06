@@ -8,29 +8,15 @@ const tokenResponseSchema = z.object({
 });
 
 export async function login(username: string, password: string) {
-  return requestJson(
-    '/v1/auth/token',
-    tokenResponseSchema,
-    {
-      method: 'POST',
-      credentials: 'include',
-      body: { username, password }
-    }
-  );
+  return requestJson('/api/auth/token', tokenResponseSchema, {
+    method: 'POST',
+    body: { username, password }
+  });
 }
 
-export async function register(username: string, password: string, organizationName: string) {
-  return requestJson(
-    '/v1/auth/register',
-    tokenResponseSchema,
-    {
-      method: 'POST',
-      credentials: 'include',
-      body: {
-        username,
-        password,
-        organization_name: organizationName
-      }
-    }
-  );
+export async function register(username: string, password: string) {
+  return requestJson('/api/auth/register', tokenResponseSchema, {
+    method: 'POST',
+    body: { username, password }
+  });
 }

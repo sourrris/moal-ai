@@ -1,20 +1,13 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://api.localhost';
-export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL ?? 'http://ws.localhost';
-export const CONTROL_TENANT_URL = import.meta.env.VITE_CONTROL_TENANT_URL ?? 'http://control.localhost';
-export const CONTROL_OPS_URL = import.meta.env.VITE_CONTROL_OPS_URL ?? 'http://ops-control.localhost';
-
-export const TENANT_OPTIONS = ['all', 'tenant-alpha', 'tenant-beta'] as const;
-export type TenantOption = string;
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 export const WINDOW_OPTIONS = ['1h', '24h', '7d'] as const;
 export type WindowOption = (typeof WINDOW_OPTIONS)[number];
 
 export const STORAGE_KEYS = {
-  token: 'risk_token',
-  username: 'risk_username',
-  tenant: 'risk_tenant',
-  window: 'risk_window',
-  timezone: 'risk_timezone',
-  theme: 'risk_theme',
-  density: 'dashboard_density'
+  token: 'moal_token',
+  username: 'moal_username',
+  window: 'moal_window',
+  timezone: 'moal_timezone',
+  theme: 'moal_theme',
+  density: 'moal_density'
 } as const;

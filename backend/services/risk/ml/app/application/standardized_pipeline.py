@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from risk_common.platform_schema import StandardizedTransaction
+from moal_common.platform_schema import StandardizedTransaction
 
 
 class StandardizedInferenceRequest(BaseModel):

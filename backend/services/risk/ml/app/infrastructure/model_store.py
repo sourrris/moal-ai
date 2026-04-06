@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import tensorflow as tf
-from risk_common.schemas import InferenceResponse, ModelMetadata, ModelTrainingResult
+from moal_common.schemas import InferenceResponse, ModelMetadata, ModelTrainingResult
 
 from app.domain.entities import LoadedModel
 

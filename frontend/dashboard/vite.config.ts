@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico'],
       manifest: {
-        name: 'Aegis Risk Dashboard',
-        short_name: 'Aegis Risk',
-        description: 'Lightweight operational dashboard for real-time risk monitoring',
+        name: 'moal-ai Dashboard',
+        short_name: 'moal-ai',
+        description: 'Self-hosted user behavior anomaly detection dashboard',
         theme_color: '#f4f4f5',
         background_color: '#f4f4f5',
         display: 'standalone',

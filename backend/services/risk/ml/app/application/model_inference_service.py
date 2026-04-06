@@ -1,4 +1,4 @@
-from risk_common.schemas import (
+from moal_common.schemas import (
     InferenceRequest,
     InferenceResponse,
     ModelMetadata,

@@ -3,10 +3,9 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, work, "upgrade/**"]
+    branches: [main, "pivot/**"]
 
 jobs:
-  # ── 1. Secret / supply-chain scan ──────────────────────────────────────────
   security:
     name: security-scan
     runs-on: ubuntu-latest
@@ -22,13 +21,8 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # GITLEAKS_NOGIT preserves --no-git semantics from the previous curl-based
-          # install: scans the filesystem only, not git history. This avoids false
-          # positives from already-rotated historical secrets. Remove this env var
-          # only after populating a .gitleaksignore with any known historical findings.
           GITLEAKS_NOGIT: "true"
 
-  # ── 2. Python quality gate ─────────────────────────────────────────────────
   backend-quality:
     name: backend-quality
     runs-on: ubuntu-latest
@@ -73,27 +67,12 @@ jobs:
           done < <(find backend/services -name requirements.txt | sort)
           python -m pip install -r backend/requirements-dev.txt
 
-      # - name: Security audit
-      #   run: |
-      #     bandit -r backend/services backend/libs -q --severity-level medium --skip B608
-      #     # Audit all packages in the environment (no -r flag): the install step
-      #     # already loaded every service requirement into this venv, so this scans
-      #     # the full production + dev surface — fastapi, uvicorn, sqlalchemy, asyncpg,
-      #     # tensorflow, passlib, slowapi, argon2-cffi, and all transitive deps.
-      #     # Temporary exception: CVE-2024-23342 is inherited transitively via
-      #     # python-jose's ecdsa dependency chain in risk-common.
-      #     pip-audit --skip-editable --ignore-vuln CVE-2024-23342
-
-      # - name: Run tests
-      #   run: pytest -q
-
       - name: Validate migrations
         run: |
           cd backend
           DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/risk_monitor \
             alembic -c alembic.ini upgrade head
 
-  # ── 3. Frontend quality gate ───────────────────────────────────────────────
   frontend-quality:
     name: frontend-quality
     runs-on: ubuntu-latest
@@ -107,121 +86,33 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: |
-            frontend/dashboard/package-lock.json
-            frontend/control-tenant/package-lock.json
-            frontend/control-ops/package-lock.json
+          cache-dependency-path: frontend/dashboard/package-lock.json
 
       - name: Install frontend dependencies
-        run: |
-          npm ci --prefix frontend/dashboard
-          npm ci --prefix frontend/control-tenant
-          npm ci --prefix frontend/control-ops
+        run: npm ci --prefix frontend/dashboard
 
       - name: Test and build
         run: |
           npm test --prefix frontend/dashboard
           npm run build --prefix frontend/dashboard
-          npm test --prefix frontend/control-tenant
-          npm run build --prefix frontend/control-tenant
-          npm run build --prefix frontend/control-ops
 
-  # ── 4. Playwright smoke test (control-ops) ─────────────────────────────────
-  control-ops-smoke:
-    name: control-ops-smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [frontend-quality]
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/control-ops/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci --prefix frontend/control-ops
-
-      - name: Install Playwright browser
-        run: npx --prefix frontend/control-ops playwright install --with-deps chromium
-
-      - name: Smoke test
-        run: |
-          set -euo pipefail
-          cd frontend/control-ops
-          npm run dev -- --host 127.0.0.1 --port 4175 >/tmp/control-ops.log 2>&1 &
-          server_pid=$!
-          trap 'kill "${server_pid}" >/dev/null 2>&1 || true' EXIT
-          timeout 60 bash -c 'until curl -fsS http://127.0.0.1:4175 >/dev/null; do sleep 1; done'
-          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4175 npm run test:e2e
-
-  # ── 5. Infrastructure validation ───────────────────────────────────────────
-  infra-validate:
-    name: infra-validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: azure/setup-kubectl@v4
-
-      - name: Validate kustomize overlays
-        run: |
-          kubectl kustomize infra/eks/overlays/staging > /dev/null
-          kubectl kustomize infra/eks/overlays/prod > /dev/null
-
-  # ── 6. Docker build + push + scan ──────────────────────────────────────────
   build:
     name: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [security, backend-quality, frontend-quality, control-ops-smoke, infra-validate]
+    timeout-minutes: 20
+    needs: [security, backend-quality, frontend-quality]
     permissions:
       contents: read
-      packages: write
-      security-events: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
-        if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build (and push on main) service images
-        env:
-          PUSH: ${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
+      - name: Build service images
         run: |
           set -euo pipefail
-          SHORT_SHA="${GITHUB_SHA::8}"
-          build_and_push() {
-            local tag="$1"
-            local dockerfile="$2"
-            local full_tag="ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:${SHORT_SHA}"
-            docker build -t "${full_tag}" -f "${dockerfile}" .
-            if [ "${PUSH}" = "true" ]; then
-              docker push "${full_tag}"
-              docker tag "${full_tag}" "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:latest"
-              docker push "ghcr.io/${GITHUB_REPOSITORY,,}/${tag}:latest"
-            fi
-          }
-          while IFS= read -r dockerfile; do
-            svc="$(basename "$(dirname "${dockerfile}")")"
-            build_and_push "${svc}" "${dockerfile}"
-          done < <(find backend/services -name Dockerfile | sort)
-          build_and_push "migrations" "backend/Dockerfile.migrations"
-          build_and_push "dashboard" "frontend/dashboard/Dockerfile"
-          build_and_push "control-tenant" "frontend/control-tenant/Dockerfile"
-          build_and_push "control-ops" "frontend/control-ops/Dockerfile"
+          docker build -t moal-api -f backend/services/risk/api/Dockerfile .
+          docker build -t moal-ml -f backend/services/risk/ml/Dockerfile .
+          docker build -t moal-migrations -f backend/Dockerfile.migrations .
+          docker build -t moal-dashboard -f frontend/dashboard/Dockerfile .

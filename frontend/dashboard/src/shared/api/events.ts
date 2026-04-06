@@ -1,17 +1,10 @@
-import { eventDetailSchema, eventsListResponseSchema, type EventsQuery } from '../../entities/events';
+import { eventsListResponseSchema, type EventsQuery } from '../../entities/events';
 import { requestJson } from './http';
 
 export async function fetchEvents(token: string, query: EventsQuery) {
-  return requestJson('/v1/events', eventsListResponseSchema, {
+  return requestJson('/api/events', eventsListResponseSchema, {
     token,
-    query,
+    query: query as Record<string, string | number | undefined>,
     retries: 2
-  });
-}
-
-export async function fetchEventDetail(token: string, eventId: string) {
-  return requestJson(`/v1/events/${eventId}`, eventDetailSchema, {
-    token,
-    retries: 1
   });
 }

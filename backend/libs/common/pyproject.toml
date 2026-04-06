@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "risk-common"
+name = "moal-common"
 version = "0.1.0"
-description = "Shared utilities for the Real-Time AI Risk Monitoring System"
+description = "Shared utilities for moal-ai — self-hosted user behavior anomaly detection"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.6,<3.0",
@@ -16,4 +16,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["risk_common"]
+packages = ["moal_common"]
