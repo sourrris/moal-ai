@@ -3,20 +3,12 @@ import { useMemo } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
 import { AuthProvider } from '../state/auth-context';
-import { LiveAlertsProvider } from '../state/live-alerts-context';
 import { UIProvider } from '../state/ui-context';
-import { ToastProvider, useToast } from '../../shared/ui/toaster';
 
 const routerFuture = {
   v7_startTransition: true,
   v7_relativeSplatPath: true,
 } as const;
-
-// Inner component to properly inject the toast function into LiveAlertsProvider
-function LiveAlertsWithToast({ children }: { children: React.ReactNode }) {
-  const { toast } = useToast();
-  return <LiveAlertsProvider toast={toast}>{children}</LiveAlertsProvider>;
-}
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const queryClient = useMemo(
@@ -38,9 +30,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <BrowserRouter future={routerFuture}>
         <AuthProvider>
           <UIProvider>
-            <ToastProvider>
-              <LiveAlertsWithToast>{children}</LiveAlertsWithToast>
-            </ToastProvider>
+            {children}
           </UIProvider>
         </AuthProvider>
       </BrowserRouter>

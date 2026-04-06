@@ -49,9 +49,12 @@ describe('AuthProvider', () => {
     storage.clear();
   });
 
-  it('clears malformed stored sessions during bootstrap', () => {
-    window.localStorage.setItem('risk_token', encodeToken({ tenant_id: 'tenant-alpha' }));
-    window.localStorage.setItem('risk_username', 'ops@example.com');
+  it('clears expired stored sessions during bootstrap', () => {
+    window.localStorage.setItem(
+      'moal_token',
+      encodeToken({ sub: 'ops@example.com', exp: Math.floor(Date.now() / 1000) - 3600 })
+    );
+    window.localStorage.setItem('moal_username', 'ops@example.com');
 
     render(
       <AuthProvider>
@@ -61,21 +64,19 @@ describe('AuthProvider', () => {
 
     expect(screen.getByTestId('token')).toHaveTextContent('none');
     expect(screen.getByTestId('username')).toHaveTextContent('none');
-    expect(window.localStorage.getItem('risk_token')).toBeNull();
-    expect(window.localStorage.getItem('risk_username')).toBeNull();
+    expect(window.localStorage.getItem('moal_token')).toBeNull();
+    expect(window.localStorage.getItem('moal_username')).toBeNull();
   });
 
-  it('keeps issued-looking sessions available', () => {
+  it('keeps valid sessions available', () => {
     window.localStorage.setItem(
-      'risk_token',
+      'moal_token',
       encodeToken({
         sub: 'analyst@example.com',
-        tenant_id: 'tenant-alpha',
-        roles: ['admin'],
         exp: Math.floor(Date.now() / 1000) + 3600
       })
     );
-    window.localStorage.setItem('risk_username', 'analyst@example.com');
+    window.localStorage.setItem('moal_username', 'analyst@example.com');
 
     render(
       <AuthProvider>

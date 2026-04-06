@@ -1,19 +1,16 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 
-import { useAuth } from './auth-context';
-import { STORAGE_KEYS, TENANT_OPTIONS, WINDOW_OPTIONS, type TenantOption, type WindowOption } from '../../shared/lib/constants';
+import { STORAGE_KEYS, WINDOW_OPTIONS, type WindowOption } from '../../shared/lib/constants';
 import type { TimezonePreference } from '../../shared/lib/time';
 
 type ThemePreference = 'light' | 'dark';
 type DensityPreference = 'comfortable' | 'compact';
 
 type UIState = {
-  tenant: TenantOption;
   window: WindowOption;
   timezone: TimezonePreference;
   theme: ThemePreference;
   density: DensityPreference;
-  setTenant: (value: TenantOption) => void;
   setWindow: (value: WindowOption) => void;
   setTimezone: (value: TimezonePreference) => void;
   setTheme: (value: ThemePreference) => void;
@@ -21,14 +18,6 @@ type UIState = {
 };
 
 const UIContext = createContext<UIState | null>(null);
-
-function asTenant(input: string | null): TenantOption {
-  const normalized = input?.trim();
-  if (!normalized) {
-    return 'all';
-  }
-  return TENANT_OPTIONS.includes(normalized as (typeof TENANT_OPTIONS)[number]) ? normalized : normalized;
-}
 
 function asWindow(input: string | null): WindowOption {
   return WINDOW_OPTIONS.includes((input ?? '') as WindowOption) ? (input as WindowOption) : '24h';
@@ -45,8 +34,6 @@ function asDensity(input: string | null): DensityPreference {
 }
 
 export function UIProvider({ children }: { children: React.ReactNode }) {
-  const { tenantId: sessionTenantId } = useAuth();
-  const [tenant, setTenantState] = useState<TenantOption>(() => asTenant(window.localStorage.getItem(STORAGE_KEYS.tenant)));
   const [range, setRangeState] = useState<WindowOption>(() => asWindow(window.localStorage.getItem(STORAGE_KEYS.window)));
   const [timezone, setTimezoneState] = useState<TimezonePreference>(
     () => (window.localStorage.getItem(STORAGE_KEYS.timezone) as TimezonePreference | null) ?? 'local'
@@ -56,30 +43,12 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   );
   const [density, setDensityState] = useState<DensityPreference>(() => asDensity(window.localStorage.getItem(STORAGE_KEYS.density)));
 
-  useEffect(() => {
-    if (!sessionTenantId) {
-      return;
-    }
-    setTenantState((current) => {
-      if (current === 'all' || current === sessionTenantId) {
-        return current;
-      }
-      window.localStorage.setItem(STORAGE_KEYS.tenant, sessionTenantId);
-      return sessionTenantId;
-    });
-  }, [sessionTenantId]);
-
   const value = useMemo<UIState>(
     () => ({
-      tenant,
       window: range,
       timezone,
       theme,
       density,
-      setTenant: (next) => {
-        setTenantState(next);
-        window.localStorage.setItem(STORAGE_KEYS.tenant, next);
-      },
       setWindow: (next) => {
         setRangeState(next);
         window.localStorage.setItem(STORAGE_KEYS.window, next);
@@ -97,7 +66,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         window.localStorage.setItem(STORAGE_KEYS.density, next);
       }
     }),
-    [density, range, tenant, theme, timezone]
+    [density, range, theme, timezone]
   );
 
   return (
