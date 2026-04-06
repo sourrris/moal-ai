@@ -19,7 +19,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "services" / "risk" / 
 from app.api import deps, routes_models
 from app.application.risk_event_service import ModelGatewayError
 from app.infrastructure.db import get_db_session
-from risk_common.schemas_v2 import AuthClaims
+from moal_common.schemas_v2 import AuthClaims
 
 
 def _test_claims(read_only: bool = False) -> AuthClaims:

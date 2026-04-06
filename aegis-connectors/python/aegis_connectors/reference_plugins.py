@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 import httpx
 from app.application.connectors import BaseConnector, ConnectorResult, register_reference_connector
 from app.config import get_settings
-from risk_common.schemas_v2 import RiskEventIngestRequest, TransactionPayload
+from moal_common.schemas_v2 import RiskEventIngestRequest, TransactionPayload
 
 settings = get_settings()
 

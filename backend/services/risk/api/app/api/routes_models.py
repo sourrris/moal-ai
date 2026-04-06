@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from risk_common.schemas import (
+from moal_common.schemas import (
     ModelListItem,
     ModelMetadata,
     ModelMetricsResponse,
@@ -14,7 +14,7 @@ from risk_common.schemas import (
     ModelTrainRequest,
     ModelTrainResponse,
 )
-from risk_common.schemas_v2 import AuthClaims, ModelTrainingRun
+from moal_common.schemas_v2 import AuthClaims, ModelTrainingRun
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope

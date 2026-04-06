@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from risk_common.config import WorkerSettings
+from moal_common.config import WorkerSettings
 
 
 @lru_cache

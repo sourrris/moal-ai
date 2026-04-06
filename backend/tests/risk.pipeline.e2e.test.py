@@ -32,7 +32,7 @@ for _k in list(sys.modules):
 sys.path[0] = str(Path(__file__).resolve().parents[1] / "services" / "risk" / "api")
 from app.api import deps, routes_events_v2  # noqa: E402
 from app.infrastructure.db import get_db_session  # noqa: E402
-from risk_common.schemas_v2 import AuthClaims  # noqa: E402
+from moal_common.schemas_v2 import AuthClaims  # noqa: E402
 
 
 def _claims(tenant_id: str = "tenant-a", scopes: list[str] | None = None) -> AuthClaims:
@@ -328,7 +328,7 @@ async def test_worker_v2_dedup_hit_acks_immediately(monkeypatch: pytest.MonkeyPa
     redis = _FakeRedis(hit=True)
     processor = _TestProcessor(redis, SimpleNamespace(), inference=inference)
 
-    from risk_common.schemas_v2 import RiskEventV2
+    from moal_common.schemas_v2 import RiskEventV2
     event = RiskEventV2(
         tenant_id="tenant-a",
         source="test",

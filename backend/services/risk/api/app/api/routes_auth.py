@@ -11,9 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from fastapi.responses import RedirectResponse
 from jose import jwt
 from pydantic import BaseModel, Field, field_validator
-from risk_common.schemas import TokenResponse
-from risk_common.schemas_v2 import AuthClaims
-from risk_common.security import (
+from moal_common.schemas import TokenResponse
+from moal_common.schemas_v2 import AuthClaims
+from moal_common.security import (
     build_rsa_jwk,
     create_access_token,
     create_refresh_token,

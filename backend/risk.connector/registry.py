@@ -1,6 +1,6 @@
 """Compatibility shim for the connector registry surface."""
 
-from risk_common.connector_abstractions import (
+from moal_common.connector_abstractions import (
     connector_registry,
     load_connector_from_config,
     register_connector,

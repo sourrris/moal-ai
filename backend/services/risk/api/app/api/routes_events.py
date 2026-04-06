@@ -3,8 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from risk_common.messaging import publish_json_with_compat
-from risk_common.schemas import EventEnvelope, EventIngestRequest
+from moal_common.messaging import publish_json_with_compat
+from moal_common.schemas import EventEnvelope, EventIngestRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_subject, get_rabbit_channel

@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-from risk_common.security import decode_access_token
+from moal_common.security import decode_access_token
 
 from app.config import get_settings
 from app.domain.connection_manager import ConnectionManager

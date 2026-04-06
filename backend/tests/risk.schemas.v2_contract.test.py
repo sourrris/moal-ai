@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 
-from risk_common.schemas_v2 import DataSourceRunSummary, DataSourceStatus, RiskEventIngestRequest
+from moal_common.schemas_v2 import DataSourceRunSummary, DataSourceStatus, RiskEventIngestRequest
 
 
 def test_risk_event_ingest_schema_normalizes_currency() -> None:

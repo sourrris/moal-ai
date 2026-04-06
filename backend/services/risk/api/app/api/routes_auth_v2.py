@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from risk_common.schemas_v2 import RefreshTokenRequest, TokenPairResponse
-from risk_common.security import create_access_token, create_refresh_token, decode_refresh_token
+from moal_common.schemas_v2 import RefreshTokenRequest, TokenPairResponse
+from moal_common.security import create_access_token, create_refresh_token, decode_refresh_token
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings

@@ -7,8 +7,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
-from risk_common.messaging import publish_json_with_compat
-from risk_common.security import create_access_token
+from moal_common.messaging import publish_json_with_compat
+from moal_common.security import create_access_token
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.connectors import BaseConnector, ConnectorResult, default_connectors

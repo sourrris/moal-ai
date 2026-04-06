@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from risk_common.config import NotificationSettings
+from moal_common.config import NotificationSettings
 
 
 @lru_cache

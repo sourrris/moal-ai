@@ -15,8 +15,8 @@ from uuid import UUID, uuid4
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from risk_common.schemas_v2 import AuthClaims, RiskEventIngestRequest
-from risk_common.security import create_access_token
+from moal_common.schemas_v2 import AuthClaims, RiskEventIngestRequest
+from moal_common.security import create_access_token
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 

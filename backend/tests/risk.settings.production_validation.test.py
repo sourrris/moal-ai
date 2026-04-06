@@ -7,7 +7,7 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 
-from risk_common.config import ApiGatewaySettings
+from moal_common.config import ApiGatewaySettings
 
 
 def test_production_settings_reject_placeholder_jwt_secret(monkeypatch: pytest.MonkeyPatch) -> None:

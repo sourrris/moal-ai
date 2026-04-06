@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "risk"
 
 from app.api import deps, routes_events_v2
 from app.infrastructure.db import get_db_session
-from risk_common.schemas_v2 import AuthClaims
+from moal_common.schemas_v2 import AuthClaims
 
 
 def _make_app_with_auth(fake_token_payload: dict | None) -> FastAPI:
@@ -174,7 +174,7 @@ async def test_worker_v2_dedup_key_is_tenant_scoped(monkeypatch: pytest.MonkeyPa
     try:
         import app.application.processor as processor_mod
         from app.application.processor import EventProcessor
-        from risk_common.schemas_v2 import RiskEventV2
+        from moal_common.schemas_v2 import RiskEventV2
     finally:
         sys.path.remove(_worker_path)
         for _k in list(sys.modules):
@@ -238,7 +238,7 @@ async def test_worker_v2_dedup_key_is_tenant_scoped(monkeypatch: pytest.MonkeyPa
 
     class _FixedProcessor(EventProcessor):
         async def _call_inference(self, event_id, transaction, features):
-            from risk_common.schemas import InferenceResponse
+            from moal_common.schemas import InferenceResponse
 
             return InferenceResponse(
                 event_id=event_id,

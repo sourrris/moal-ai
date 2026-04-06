@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from risk_common.schemas_v2 import RiskEventV2
+from moal_common.schemas_v2 import RiskEventV2
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 

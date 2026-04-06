@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from risk_common.config import ApiGatewaySettings
+from moal_common.config import ApiGatewaySettings
 
 
 @lru_cache

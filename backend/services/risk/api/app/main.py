@@ -4,9 +4,9 @@ import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
-from risk_common.logging import configure_logging
-from risk_common.messaging import connect, setup_topology
-from risk_common.schemas import HealthResponse
+from moal_common.logging import configure_logging
+from moal_common.messaging import connect, setup_topology
+from moal_common.schemas import HealthResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware

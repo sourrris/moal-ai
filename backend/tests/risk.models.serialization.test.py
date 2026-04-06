@@ -9,7 +9,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 sys.path.append(str(Path(__file__).resolve().parents[1] / "services" / "risk" / "api"))
 
 from app.api.routes_models import _normalize_model_item
-from risk_common.schemas import ModelTrainRequest
+from moal_common.schemas import ModelTrainRequest
 
 
 def test_model_item_normalizes_decimal_like_strings() -> None:

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from risk_common.schemas import ModelMetadata
+from moal_common.schemas import ModelMetadata
 
 
 @dataclass

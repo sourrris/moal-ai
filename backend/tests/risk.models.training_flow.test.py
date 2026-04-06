@@ -15,8 +15,8 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "services" / "risk" / 
 
 from app.api import routes_models
 from app.application.risk_event_service import ModelGatewayError
-from risk_common.schemas import ModelTrainRequest
-from risk_common.schemas_v2 import AuthClaims
+from moal_common.schemas import ModelTrainRequest
+from moal_common.schemas_v2 import AuthClaims
 
 
 @pytest.mark.asyncio

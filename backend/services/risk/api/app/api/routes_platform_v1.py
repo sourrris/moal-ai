@@ -7,14 +7,14 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from risk_common.connector_abstractions import (
+from moal_common.connector_abstractions import (
     BaseConnector,
     connector_registry,
     load_connector_from_config,
     register_connector,
 )
-from risk_common.platform_schema import StandardizedTransaction
-from risk_common.schemas_v2 import AuthClaims, EventIngestResult
+from moal_common.platform_schema import StandardizedTransaction
+from moal_common.schemas_v2 import AuthClaims, EventIngestResult
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 

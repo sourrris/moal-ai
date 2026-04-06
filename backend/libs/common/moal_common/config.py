@@ -88,7 +88,7 @@ class BaseServiceSettings(BaseSettings):
         validation_alias=AliasChoices("JWT_PUBLIC_KEY_PEM", "jwt_public_key_pem"),
     )
     jwt_key_id: str = Field(
-        default="aegis-default-kid",
+        default="moal-default-kid",
         validation_alias=AliasChoices("JWT_KEY_ID", "jwt_key_id"),
     )
     jwt_access_token_minutes: int = 60
@@ -98,11 +98,11 @@ class BaseServiceSettings(BaseSettings):
     )
     jwt_refresh_token_minutes: int = 10080
     auth_access_cookie_name: str = Field(
-        default="aegis_access_token",
+        default="moal_access_token",
         validation_alias=AliasChoices("AUTH_ACCESS_COOKIE_NAME", "auth_access_cookie_name"),
     )
     auth_refresh_cookie_name: str = Field(
-        default="aegis_refresh_token",
+        default="moal_refresh_token",
         validation_alias=AliasChoices("AUTH_REFRESH_COOKIE_NAME", "auth_refresh_cookie_name"),
     )
     auth_cookie_domain: str | None = Field(
@@ -165,8 +165,8 @@ class BaseServiceSettings(BaseSettings):
     connector_backoff_max_seconds: int = 1800
     connector_circuit_breaker_failures: int = 5
     connector_jitter_seconds: int = 15
-    connector_reference_modules: str = "aegis_connectors.reference_plugins"
-    connector_ingest_modules: str = "aegis_connectors.ingest_plugins"
+    connector_reference_modules: str = "moal_connectors.reference_plugins"
+    connector_ingest_modules: str = "moal_connectors.ingest_plugins"
     connector_source_route_map_json: str = "{}"
     connector_auto_ingest_on_reference_update: bool = True
     connector_auto_ingest_tenant_id: str = "tenant-alpha"
@@ -191,7 +191,7 @@ class BaseServiceSettings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("SMTP_TLS", "alert_router_email_smtp_tls"),
     )
-    alert_router_email_from: str = "no-reply@aegis.local"
+    alert_router_email_from: str = "no-reply@moal.local"
     model_activation_min_samples: int = Field(
         default=64,
         validation_alias=AliasChoices("MODEL_ACTIVATION_MIN_SAMPLES", "model_activation_min_samples"),
@@ -267,7 +267,7 @@ class BaseServiceSettings(BaseSettings):
 
         if using_placeholder and not is_strict:
             print(
-                f"[AEGIS WARNING] JWT secrets are using placeholder values in environment '{env_name}'. "
+                f"[MOAL WARNING] JWT secrets are using placeholder values in environment '{env_name}'. "
                 "Set JWT_SECRET and JWT_REFRESH_SECRET before deploying.",
                 file=sys.stderr,
             )

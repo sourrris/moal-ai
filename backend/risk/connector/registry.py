@@ -1,4 +1,4 @@
-from risk_common.connector_abstractions import (
+from moal_common.connector_abstractions import (
     ConnectorRegistry,
     connector_registry,
     load_connector_from_config,

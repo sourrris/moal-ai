@@ -6,15 +6,15 @@ from uuid import UUID
 import httpx
 from aio_pika import IncomingMessage
 from redis.asyncio import Redis
-from risk_common.messaging import publish_json_with_compat
-from risk_common.platform_schema import StandardizedAlert, StandardizedTransaction
-from risk_common.schemas import (
+from moal_common.messaging import publish_json_with_compat
+from moal_common.platform_schema import StandardizedAlert, StandardizedTransaction
+from moal_common.schemas import (
     AlertMessage,
     EventEnvelope,
     InferenceResponse,
     WebSocketEnvelope,
 )
-from risk_common.schemas_v2 import RiskEventV2
+from moal_common.schemas_v2 import RiskEventV2
 
 from app.application.enrichment import EventEnrichmentService
 from app.application.rules_engine import RulesEngine, infer_risk_level

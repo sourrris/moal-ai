@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from risk_common.schemas_v2 import AuthClaims
+from moal_common.schemas_v2 import AuthClaims
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_auth_claims

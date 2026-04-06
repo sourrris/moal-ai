@@ -4,8 +4,8 @@ import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
-from risk_common.logging import configure_logging
-from risk_common.schemas import HealthResponse
+from moal_common.logging import configure_logging
+from moal_common.schemas import HealthResponse
 
 from app.api.routes_control import router as control_router
 from app.config import get_settings

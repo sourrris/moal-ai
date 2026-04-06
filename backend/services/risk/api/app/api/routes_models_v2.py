@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
-from risk_common.schemas_v2 import AuthClaims, ModelDriftSnapshot, ModelTrainingRun
+from moal_common.schemas_v2 import AuthClaims, ModelDriftSnapshot, ModelTrainingRun
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope

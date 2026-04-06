@@ -8,7 +8,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from risk_common.platform_schema import StandardizedTransaction
+from moal_common.platform_schema import StandardizedTransaction
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from risk_common.schemas_v2 import AuthClaims
-from risk_common.security import decode_access_token
+from moal_common.schemas_v2 import AuthClaims
+from moal_common.security import decode_access_token
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings

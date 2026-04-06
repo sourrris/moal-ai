@@ -2,9 +2,9 @@ import logging
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from risk_common.messaging import publish_json_with_compat
-from risk_common.schemas import EventEnvelope
-from risk_common.schemas_v2 import (
+from moal_common.messaging import publish_json_with_compat
+from moal_common.schemas import EventEnvelope
+from moal_common.schemas_v2 import (
     AuthClaims,
     BatchIngestResult,
     EventIngestResult,

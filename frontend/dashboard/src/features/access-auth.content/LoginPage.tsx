@@ -44,13 +44,13 @@ export function LoginPage() {
       <div className="relative z-10 mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[1.2fr_420px] lg:items-center">
         <section className="stack-md">
           <p className="inline-flex w-fit items-center rounded-pill border border-stroke bg-white px-3 py-1 text-sm font-semibold text-zinc-700">
-            Aegis Risk Monitoring
+            moal-ai
           </p>
           <h1 className="text-balance text-5xl font-extrabold tracking-tight text-ink sm:text-6xl">
-            Dead simple risk operations.
+            User behavior anomaly detection.
           </h1>
           <p className="max-w-2xl text-lg text-ink-muted">
-            Sign in to monitor live anomalies, connector health, and model behavior from a clean operational cockpit.
+            Sign in to monitor user behavior anomalies and investigate security alerts.
           </p>
         </section>
 

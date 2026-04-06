@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from risk_common.connector_abstractions import BaseConnector, register_connector
-from risk_common.platform_schema import StandardizedTransaction
+from moal_common.connector_abstractions import BaseConnector, register_connector
+from moal_common.platform_schema import StandardizedTransaction
 
 
 @register_connector

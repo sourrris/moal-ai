@@ -30,8 +30,8 @@ export const TENANT_CONFIGS: Record<string, TenantDashboardConfig> = {
   default: {
     tenantId: "default",
     branding: {
-      appName: "Aegis Risk",
-      badgeText: "AR",
+      appName: "moal-ai",
+      badgeText: "MA",
     },
     features: {
       nav: {
@@ -53,8 +53,8 @@ export const TENANT_CONFIGS: Record<string, TenantDashboardConfig> = {
   "tenant-alpha": {
     tenantId: "tenant-alpha",
     branding: {
-      appName: "Aegis Risk Alpha",
-      badgeText: "AA",
+      appName: "moal-ai Alpha",
+      badgeText: "MA",
     },
     features: {
       nav: {
@@ -76,8 +76,8 @@ export const TENANT_CONFIGS: Record<string, TenantDashboardConfig> = {
   "tenant-beta": {
     tenantId: "tenant-beta",
     branding: {
-      appName: "Aegis Risk Beta",
-      badgeText: "AB",
+      appName: "moal-ai Beta",
+      badgeText: "MB",
     },
     features: {
       nav: {

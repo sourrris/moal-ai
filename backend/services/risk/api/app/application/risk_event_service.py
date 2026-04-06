@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 import httpx
-from risk_common.schemas import EventEnvelope
+from moal_common.schemas import EventEnvelope
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings

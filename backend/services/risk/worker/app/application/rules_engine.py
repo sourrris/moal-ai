@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from risk_common.schemas_v2 import RiskEventV2
+from moal_common.schemas_v2 import RiskEventV2
 
 
 class RulesEngine:

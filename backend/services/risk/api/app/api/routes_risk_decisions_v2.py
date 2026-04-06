@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from risk_common.schemas_v2 import AuthClaims, RiskDecisionV2
+from moal_common.schemas_v2 import AuthClaims, RiskDecisionV2
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope

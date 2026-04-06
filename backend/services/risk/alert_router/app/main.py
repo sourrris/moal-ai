@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 import sentry_sdk
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
-from risk_common.logging import configure_logging
-from risk_common.messaging import connect, setup_topology
-from risk_common.schemas import HealthResponse
+from moal_common.logging import configure_logging
+from moal_common.messaging import connect, setup_topology
+from moal_common.schemas import HealthResponse
 
 from app.application.router import AlertRouter
 from app.config import get_settings

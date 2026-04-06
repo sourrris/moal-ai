@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "libs" / "common"))
 
-from risk_common.security import (
+from moal_common.security import (
     create_access_token,
     create_refresh_token,
     decode_access_token,

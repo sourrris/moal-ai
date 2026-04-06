@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
-from risk_common.schemas import EventEnvelope
-from risk_common.schemas_v2 import RiskEventIngestRequest, RiskEventV2, TransactionPayload
+from moal_common.schemas import EventEnvelope
+from moal_common.schemas_v2 import RiskEventIngestRequest, RiskEventV2, TransactionPayload
 
 
 class StandardizedTransaction(BaseModel):

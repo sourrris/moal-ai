@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from passlib.context import CryptContext
-from risk_common.schemas import EventEnvelope
+from moal_common.schemas import EventEnvelope
 from sqlalchemy import select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession

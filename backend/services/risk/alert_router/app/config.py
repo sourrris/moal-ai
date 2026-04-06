@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from risk_common.config import AlertRouterSettings
+from moal_common.config import AlertRouterSettings
 
 
 @lru_cache

@@ -17,7 +17,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "services" / "risk" / 
 from app.api import deps, routes_auth, routes_setup
 from app.infrastructure.db import get_db_session
 from app.infrastructure.tenant_setup_repository import DuplicateResourceError
-from risk_common.schemas_v2 import AuthClaims
+from moal_common.schemas_v2 import AuthClaims
 
 
 def _configure_auth_settings(monkeypatch: pytest.MonkeyPatch) -> None:
