@@ -31,7 +31,7 @@ async def _score_event(features: list[float]) -> dict | None:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(
-                f"{settings.ml_inference_url}/v1/inference",
+                f"{settings.ml_inference_url}/v1/infer",
                 json={"event_id": "00000000-0000-0000-0000-000000000000", "features": features},
             )
             if resp.status_code == 200:

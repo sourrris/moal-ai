@@ -1,10 +1,9 @@
-"""Test suite conftest — clear service-specific 'app' module caches between files.
+"""Test suite conftest — clear stale 'app' module caches between test files.
 
-Multiple backend services share the top-level package name ``app`` (risk/api,
-risk/alert_router, risk/connector, risk/worker).  When pytest collects test
-files in alphabetical order, the first file to do ``import app`` wins and
+The API service uses the top-level package name ``app``.  When pytest collects
+test files in alphabetical order, the first file to do ``import app`` wins and
 populates ``sys.modules["app"]``.  Every subsequent file that needs a
-*different* ``app`` then imports the wrong package, causing collection
+*different* ``app`` import path then gets the wrong package, causing collection
 failures.
 
 ``pytest_collect_file`` returns a custom ``IsolatedModule`` collector for

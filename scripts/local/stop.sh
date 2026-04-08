@@ -4,12 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PID_DIR="$ROOT_DIR/.local/run/pids"
 
-# Stop nginx reverse proxy if running
-NGINX_CONF="$ROOT_DIR/infra/reverse-proxy/nginx-local.conf"
-if command -v nginx >/dev/null 2>&1; then
-  nginx -c "$NGINX_CONF" -s stop >/dev/null 2>&1 || true
-fi
-
 if [[ ! -d "$PID_DIR" ]]; then
   exit 0
 fi

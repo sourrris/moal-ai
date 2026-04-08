@@ -27,13 +27,9 @@ class Event(Base):
     __tablename__ = "events"
 
     event_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    tenant_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(120), nullable=False)
     event_type: Mapped[str] = mapped_column(String(120), nullable=False)
-    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     features: Mapped[list[float]] = mapped_column(ARRAY(Float), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
-    submitted_by: Mapped[str] = mapped_column(String(120), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(tz=UTC), index=True

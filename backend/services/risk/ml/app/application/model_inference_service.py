@@ -6,7 +6,6 @@ from moal_common.schemas import (
     ModelTrainRequest,
 )
 
-from app.application.standardized_pipeline import StandardizedInferenceRequest, derive_features
 from app.infrastructure.model_store import ModelStore
 
 
@@ -16,10 +15,6 @@ class InferenceService:
 
     async def infer(self, payload: InferenceRequest) -> InferenceResponse:
         return await self.model_store.infer(event_id=payload.event_id, features=payload.features)
-
-    async def infer_standardized(self, payload: StandardizedInferenceRequest) -> InferenceResponse:
-        features = payload.features or derive_features(payload.transaction)
-        return await self.model_store.infer(event_id=payload.event_id, features=features)
 
     async def train(self, payload: ModelTrainRequest) -> ModelTrainingResult:
         if not payload.features:

@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, "pivot/**"]
+    branches: [main]
 
 jobs:
   security:
@@ -72,6 +72,11 @@ jobs:
           cd backend
           DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/risk_monitor \
             alembic -c alembic.ini upgrade head
+
+      - name: Run tests
+        run: |
+          DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/risk_monitor \
+            pytest
 
   frontend-quality:
     name: frontend-quality
