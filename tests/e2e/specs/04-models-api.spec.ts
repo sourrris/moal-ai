@@ -18,7 +18,7 @@ let token = '';
 let tenantId = '';
 
 test.beforeAll(async ({ request }) => {
-  const reg = await request.post(`${API}/v1/auth/register`, {
+  const reg = await request.post(`${API}/api/auth/register`, {
     data: { username: EMAIL, password: PASSWORD, organization_name: `Models Org ${TS}` },
   });
   expect(reg.status(), `register failed: ${await reg.text()}`).toBe(201);

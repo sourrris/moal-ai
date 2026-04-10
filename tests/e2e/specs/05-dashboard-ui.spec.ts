@@ -16,7 +16,7 @@ const PASSWORD = 'DashPass1!';
 let authToken = '';
 
 test.beforeAll(async ({ request }) => {
-  const resp = await request.post(`${API}/v1/auth/register`, {
+  const resp = await request.post(`${API}/api/auth/register`, {
     data: { username: EMAIL, password: PASSWORD, organization_name: `Dash Org ${TS}` },
   });
   expect(resp.status(), `register failed: ${await resp.text()}`).toBe(201);

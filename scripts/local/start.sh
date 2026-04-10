@@ -127,7 +127,7 @@ start_backend() {
     ML_INFERENCE_URL="$ML_INFERENCE_URL" \
     CORS_ALLOW_ORIGINS="$CORS_ALLOW_ORIGINS" \
     "$@" \
-    uvicorn app.main:app --host 0.0.0.0 --port "$port"
+    uvicorn app.main:app --host 0.0.0.0 --port "$port" --reload
 }
 
 echo "Starting backend services..."

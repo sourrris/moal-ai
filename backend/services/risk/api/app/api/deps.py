@@ -18,7 +18,7 @@ async def get_auth_claims(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
     payload = decode_access_token(
         raw_token,
-        secret_key=settings.jwt_verification_key,
+        secret_key=settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
     )
     if not payload or not payload.get("sub"):
