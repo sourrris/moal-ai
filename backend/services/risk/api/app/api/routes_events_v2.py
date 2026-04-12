@@ -1,6 +1,6 @@
-import logging
 import json
-from datetime import UTC
+import logging
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_scope
-from app.application.feature_engineering import compute_features
+from app.application.feature_engineering import compute_features_v2, FEATURE_DIM_V2
 from app.config import get_settings
 from app.infrastructure.db import get_db_session
 
@@ -42,6 +42,122 @@ async def _score_event(features: list[float]) -> dict | None:
     return None
 
 
+async def _fetch_user_baseline(session: AsyncSession, user_identifier: str) -> dict | None:
+    """Fetch the current baseline for a user, or None if first event."""
+    result = await session.execute(
+        text("""
+            SELECT user_identifier, total_events, total_anomalies,
+                   hourly_counts, known_ips, known_devices, known_countries,
+                   avg_session_duration, avg_request_rate, avg_failed_auth_ratio,
+                   last_event_at, events_last_hour, events_last_hour_window_start
+            FROM user_baselines
+            WHERE user_identifier = :uid
+        """),
+        {"uid": user_identifier},
+    )
+    row = result.mappings().fetchone()
+    if not row:
+        return None
+    return dict(row)
+
+
+async def _update_user_baseline(
+    session: AsyncSession,
+    event: BehaviorEventIngest,
+    is_anomaly: bool,
+) -> None:
+    """Upsert user baseline with data from the new event."""
+    occurred = event.occurred_at
+    if occurred.tzinfo is None:
+        occurred = occurred.replace(tzinfo=UTC)
+    hour = occurred.hour
+
+    # Build known-context increments
+    ip_val = event.source_ip or ""
+    device_val = event.device_fingerprint or ""
+    country_val = event.geo_country or ""
+
+    duration = event.session_duration_seconds or 0
+    request_count = max(event.request_count, 1)
+    failed_ratio = min(event.failed_auth_count / request_count, 1.0) if request_count > 0 else 0.0
+    rate = (request_count / (duration / 60.0)) if duration > 0 else float(request_count)
+
+    anomaly_inc = 1 if is_anomaly else 0
+
+    await session.execute(
+        text("""
+            INSERT INTO user_baselines (
+                user_identifier, total_events, total_anomalies,
+                hourly_counts, known_ips, known_devices, known_countries,
+                avg_session_duration, avg_request_rate, avg_failed_auth_ratio,
+                last_event_at, events_last_hour, events_last_hour_window_start, updated_at
+            ) VALUES (
+                :uid, 1, :anomaly_inc,
+                (SELECT array_agg(CASE WHEN i = :hour THEN 1 ELSE 0 END) FROM generate_series(0, 23) AS i),
+                CASE WHEN :ip != '' THEN jsonb_build_object(:ip, 1) ELSE '{}'::jsonb END,
+                CASE WHEN :device != '' THEN jsonb_build_object(:device, 1) ELSE '{}'::jsonb END,
+                CASE WHEN :country != '' THEN jsonb_build_object(:country, 1) ELSE '{}'::jsonb END,
+                :duration, :rate, :failed_ratio,
+                :occurred_at, 1, :window_start, NOW()
+            )
+            ON CONFLICT (user_identifier) DO UPDATE SET
+                total_events = user_baselines.total_events + 1,
+                total_anomalies = user_baselines.total_anomalies + :anomaly_inc,
+                hourly_counts = (
+                    SELECT array_agg(
+                        CASE WHEN i = :hour
+                        THEN COALESCE(user_baselines.hourly_counts[i + 1], 0) + 1
+                        ELSE COALESCE(user_baselines.hourly_counts[i + 1], 0)
+                        END
+                    )
+                    FROM generate_series(0, 23) AS i
+                ),
+                known_ips = CASE
+                    WHEN :ip != '' THEN user_baselines.known_ips || jsonb_build_object(:ip, COALESCE((user_baselines.known_ips->>:ip)::int, 0) + 1)
+                    ELSE user_baselines.known_ips
+                END,
+                known_devices = CASE
+                    WHEN :device != '' THEN user_baselines.known_devices || jsonb_build_object(:device, COALESCE((user_baselines.known_devices->>:device)::int, 0) + 1)
+                    ELSE user_baselines.known_devices
+                END,
+                known_countries = CASE
+                    WHEN :country != '' THEN user_baselines.known_countries || jsonb_build_object(:country, COALESCE((user_baselines.known_countries->>:country)::int, 0) + 1)
+                    ELSE user_baselines.known_countries
+                END,
+                avg_session_duration = (user_baselines.avg_session_duration * user_baselines.total_events + :duration) / (user_baselines.total_events + 1),
+                avg_request_rate = (user_baselines.avg_request_rate * user_baselines.total_events + :rate) / (user_baselines.total_events + 1),
+                avg_failed_auth_ratio = (user_baselines.avg_failed_auth_ratio * user_baselines.total_events + :failed_ratio) / (user_baselines.total_events + 1),
+                last_event_at = :occurred_at,
+                events_last_hour = CASE
+                    WHEN user_baselines.events_last_hour_window_start IS NULL
+                         OR :occurred_at - user_baselines.events_last_hour_window_start > INTERVAL '1 hour'
+                    THEN 1
+                    ELSE user_baselines.events_last_hour + 1
+                END,
+                events_last_hour_window_start = CASE
+                    WHEN user_baselines.events_last_hour_window_start IS NULL
+                         OR :occurred_at - user_baselines.events_last_hour_window_start > INTERVAL '1 hour'
+                    THEN :occurred_at
+                    ELSE user_baselines.events_last_hour_window_start
+                END,
+                updated_at = NOW()
+        """),
+        {
+            "uid": event.user_identifier,
+            "anomaly_inc": anomaly_inc,
+            "hour": hour,
+            "ip": ip_val,
+            "device": device_val,
+            "country": country_val,
+            "duration": float(duration),
+            "rate": rate,
+            "failed_ratio": failed_ratio,
+            "occurred_at": occurred,
+            "window_start": occurred,
+        },
+    )
+
+
 async def _ingest_single(
     event: BehaviorEventIngest,
     session: AsyncSession,
@@ -49,7 +165,11 @@ async def _ingest_single(
     if event.occurred_at.tzinfo is None:
         event.occurred_at = event.occurred_at.replace(tzinfo=UTC)
 
-    features = compute_features(event)
+    # Fetch user baseline for enriched features
+    baseline = await _fetch_user_baseline(session, event.user_identifier)
+
+    # Compute enriched 16-dim features
+    features = compute_features_v2(event, baseline)
     hour_of_day = event.occurred_at.hour
     day_of_week = event.occurred_at.weekday()
 
@@ -156,6 +276,9 @@ async def _ingest_single(
                     "user_identifier": event.user_identifier,
                 },
             )
+
+    # Update user baseline (after scoring so we know anomaly status)
+    await _update_user_baseline(session, event, is_anomaly=bool(is_anomaly))
 
     await session.commit()
     return EventIngestResult(

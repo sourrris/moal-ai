@@ -63,6 +63,7 @@ test-results/
 *.log
 *.pid
 *.pid.lock
+tests/playwright_tests/
 
 # ----------------------------
 # IDE / Editor / OS
@@ -87,3 +88,4 @@ CLAUDE.md
 graphify-out/
 DESIGN.md
 logon.csv
+/tests/e2e/tests/playwright_tests

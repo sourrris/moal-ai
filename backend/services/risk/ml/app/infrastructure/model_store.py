@@ -292,7 +292,7 @@ class ModelStore:
 
     async def _bootstrap_default_model(self) -> None:
         np.random.seed(7)
-        baseline = np.random.normal(0.0, 1.0, size=(512, 9)).astype("float32")
+        baseline = np.random.normal(0.0, 1.0, size=(512, 16)).astype("float32")
         result = await self.train(
             model_name=self.default_model_name,
             features=baseline.tolist(),

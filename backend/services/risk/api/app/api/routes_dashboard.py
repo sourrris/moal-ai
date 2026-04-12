@@ -297,3 +297,131 @@ async def dashboard_top_users(
 ) -> list[dict]:
     _, normalized_start, normalized_end = _resolve_time_range(window, start_at, end_at)
     return await _fetch_top_users(session, normalized_start, normalized_end, limit)
+
+
+@router.get("/users/{user_identifier}/profile")
+async def dashboard_user_profile(
+    user_identifier: str,
+    _: AuthClaims = Depends(require_scope("events:read")),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Return a rich profile for a single user: summary stats, event timeline, and anomaly scores."""
+    # Summary stats
+    stats_result = await session.execute(
+        text("""
+            SELECT
+                COUNT(*) AS total_events,
+                COALESCE(SUM(CASE WHEN ar.is_anomaly THEN 1 ELSE 0 END), 0) AS total_anomalies,
+                MIN(be.occurred_at) AS first_seen,
+                MAX(be.occurred_at) AS last_seen,
+                AVG(ar.anomaly_score) AS avg_anomaly_score,
+                MAX(ar.anomaly_score) AS max_anomaly_score,
+                COUNT(DISTINCT be.source_ip) AS unique_ips,
+                COUNT(DISTINCT be.device_fingerprint) AS unique_devices,
+                COUNT(DISTINCT be.geo_country) AS unique_countries
+            FROM behavior_events be
+            LEFT JOIN anomaly_results ar ON ar.event_id = be.event_id
+            WHERE be.user_identifier = :uid
+        """),
+        {"uid": user_identifier},
+    )
+    stats = stats_result.mappings().one()
+
+    # Event type breakdown
+    types_result = await session.execute(
+        text("""
+            SELECT event_type, COUNT(*) AS count
+            FROM behavior_events
+            WHERE user_identifier = :uid
+            GROUP BY event_type
+            ORDER BY count DESC
+        """),
+        {"uid": user_identifier},
+    )
+    event_types = [dict(row) for row in types_result.mappings().all()]
+
+    # Hourly pattern
+    hours_result = await session.execute(
+        text("""
+            WITH hourly AS (
+                SELECT COALESCE(hour_of_day, EXTRACT(HOUR FROM occurred_at)::INT) AS hour,
+                       COUNT(*) AS count
+                FROM behavior_events
+                WHERE user_identifier = :uid
+                GROUP BY 1
+            )
+            SELECT gs.hour, COALESCE(h.count, 0) AS count
+            FROM generate_series(0, 23) AS gs(hour)
+            LEFT JOIN hourly h ON h.hour = gs.hour
+            ORDER BY gs.hour
+        """),
+        {"uid": user_identifier},
+    )
+    hourly_pattern = [dict(row) for row in hours_result.mappings().all()]
+
+    # Recent events with anomaly scores (last 100)
+    events_result = await session.execute(
+        text("""
+            SELECT be.event_id, be.occurred_at, be.event_type, be.source,
+                   be.source_ip, be.geo_country, be.status_code,
+                   be.failed_auth_count, be.device_fingerprint,
+                   ar.anomaly_score, ar.is_anomaly, ar.threshold
+            FROM behavior_events be
+            LEFT JOIN anomaly_results ar ON ar.event_id = be.event_id
+            WHERE be.user_identifier = :uid
+            ORDER BY be.occurred_at DESC
+            LIMIT 100
+        """),
+        {"uid": user_identifier},
+    )
+    events = []
+    for row in events_result.mappings().all():
+        item = dict(row)
+        if item.get("source_ip") is not None:
+            item["source_ip"] = str(item["source_ip"])
+        events.append(item)
+
+    # Source IPs used
+    ips_result = await session.execute(
+        text("""
+            SELECT source_ip::TEXT AS ip, COUNT(*) AS count
+            FROM behavior_events
+            WHERE user_identifier = :uid AND source_ip IS NOT NULL
+            GROUP BY source_ip
+            ORDER BY count DESC
+            LIMIT 10
+        """),
+        {"uid": user_identifier},
+    )
+    source_ips = [dict(row) for row in ips_result.mappings().all()]
+
+    # Countries used
+    geo_result = await session.execute(
+        text("""
+            SELECT COALESCE(NULLIF(geo_country, ''), 'unknown') AS country, COUNT(*) AS count
+            FROM behavior_events
+            WHERE user_identifier = :uid
+            GROUP BY 1
+            ORDER BY count DESC
+        """),
+        {"uid": user_identifier},
+    )
+    countries = [dict(row) for row in geo_result.mappings().all()]
+
+    return {
+        "user_identifier": user_identifier,
+        "total_events": stats["total_events"] or 0,
+        "total_anomalies": stats["total_anomalies"] or 0,
+        "first_seen": stats["first_seen"],
+        "last_seen": stats["last_seen"],
+        "avg_anomaly_score": round(float(stats["avg_anomaly_score"]), 4) if stats["avg_anomaly_score"] is not None else None,
+        "max_anomaly_score": round(float(stats["max_anomaly_score"]), 4) if stats["max_anomaly_score"] is not None else None,
+        "unique_ips": stats["unique_ips"] or 0,
+        "unique_devices": stats["unique_devices"] or 0,
+        "unique_countries": stats["unique_countries"] or 0,
+        "event_types": event_types,
+        "hourly_pattern": hourly_pattern,
+        "recent_events": events,
+        "source_ips": source_ips,
+        "countries": countries,
+    }

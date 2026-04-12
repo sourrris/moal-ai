@@ -1,9 +1,9 @@
 import { LogOut } from 'lucide-react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from "react-router-dom";
 
-import { useAuth } from '../../app/state/auth-context';
-import { AmbientBackground } from '../../shared/ui/AmbientBackground';
-import { Button } from '../../shared/ui/button';
+import { useAuth } from "../../app/state/auth-context";
+import { AmbientBackground } from "../../shared/ui/AmbientBackground";
+import { Button } from "../../shared/ui/button";
 
 export function AppShell() {
   const { clearSession, username } = useAuth();
@@ -16,24 +16,26 @@ export function AppShell() {
       <div className="relative z-10">
         <header className="app-topbar">
           <div className="app-topbar-inner">
-            <button className="brand-chip" type="button" onClick={() => navigate('/')}>
-              <span className="brand-chip-mark">
-                M
-              </span>
+            <button
+              className="brand-chip"
+              type="button"
+              onClick={() => navigate("/")}
+            >
+              <span className="brand-chip-mark">M</span>
               <span className="brand-chip-copy">
                 <span className="brand-chip-label">moal-ai</span>
                 <span className="brand-chip-meta">behavior intelligence</span>
               </span>
             </button>
 
-            <div className="topbar-copy">
-              <p className="topbar-copy-line">
-                All-time anomaly visibility with date controls, recent activity, and investigation-ready signal density.
-              </p>
-            </div>
+            <nav className="topbar-nav">
+              <button type="button" className="topbar-nav-link" onClick={() => navigate('/')}>Overview</button>
+              <button type="button" className="topbar-nav-link" onClick={() => navigate('/alerts')}>Alerts</button>
+              <button type="button" className="topbar-nav-link" onClick={() => navigate('/models')}>Models</button>
+            </nav>
 
             <div className="topbar-actions">
-              <span className="topbar-user">{username ?? 'Analyst'}</span>
+              <span className="topbar-user">{username ?? "Analyst"}</span>
               <Button
                 variant="secondary"
                 onClick={() => {

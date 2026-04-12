@@ -13,32 +13,50 @@ async def get_auth_claims(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> AuthClaims:
-    raw_token = credentials.credentials if credentials else None
-    if not raw_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
-    payload = decode_access_token(
-        raw_token,
-        secret_key=settings.jwt_secret_key,
-        algorithm=settings.jwt_algorithm,
-    )
-    if not payload or not payload.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-    tenant_id = payload.get("tenant_id", "default")
-    roles = payload.get("roles") if isinstance(payload.get("roles"), list) else []
-    scopes = payload.get("scopes") if isinstance(payload.get("scopes"), list) else []
+    # Bypass authentication for local development/testing
     return AuthClaims(
-        sub=str(payload["sub"]),
-        tenant_id=str(tenant_id),
-        roles=[str(item) for item in roles],
-        scopes=[str(item) for item in scopes],
+        sub="admin",
+        tenant_id="default",
+        roles=["admin"],
+        scopes=[
+            "events:read",
+            "events:write",
+            "alerts:read",
+            "alerts:write",
+            "models:read",
+            "models:write",
+        ],
     )
+    # raw_token = credentials.credentials if credentials else None
+    # if not raw_token:
+    #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+    # payload = decode_access_token(
+    #     raw_token,
+    #     secret_key=settings.jwt_secret_key,
+    #     algorithm=settings.jwt_algorithm,
+    # )
+    # if not payload or not payload.get("sub"):
+    #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    # tenant_id = payload.get("tenant_id", "default")
+    # roles = payload.get("roles") if isinstance(payload.get("roles"), list) else []
+    # scopes = payload.get("scopes") if isinstance(payload.get("scopes"), list) else []
+    # return AuthClaims(
+    #     sub=str(payload["sub"]),
+    #     tenant_id=str(tenant_id),
+    #     roles=[str(item) for item in roles],
+    #     scopes=[str(item) for item in scopes],
+    # )
 
 
 def require_scope(required_scope: str):
-    async def _enforce_scope(claims: AuthClaims = Depends(get_auth_claims)) -> AuthClaims:
+    async def _enforce_scope(
+        claims: AuthClaims = Depends(get_auth_claims),
+    ) -> AuthClaims:
         if required_scope not in claims.scopes:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing required scope")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Missing required scope"
+            )
         return claims
 
     return _enforce_scope

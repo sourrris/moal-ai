@@ -1,6 +1,6 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from "react";
 
-import { STORAGE_KEYS } from '../../shared/lib/constants';
+import { STORAGE_KEYS } from "../../shared/lib/constants";
 
 type AuthState = {
   token: string | null;
@@ -12,21 +12,21 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 
 function isTokenValid(token: string): boolean {
-  const parts = token.split('.');
+  const parts = token.split(".");
   if (parts.length < 2) {
     return false;
   }
 
   try {
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const normalized = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
     const payload = JSON.parse(window.atob(normalized));
-    if (typeof payload !== 'object' || !payload) {
+    if (typeof payload !== "object" || !payload) {
       return false;
     }
 
     const exp = payload.exp;
-    if (typeof exp !== 'number') {
+    if (typeof exp !== "number") {
       return false;
     }
 
@@ -79,9 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(null);
         setUsername(null);
         clearStoredSession();
-      }
+      },
     }),
-    [token, username]
+    [token, username],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -90,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider');
+    throw new Error("useAuth must be used inside AuthProvider");
   }
   return context;
 }

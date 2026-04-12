@@ -1,6 +1,23 @@
 import { useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ReferenceLine,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  Treemap,
+  XAxis,
+  YAxis
+} from 'recharts';
 
 import { useAuth } from '../../app/state/auth-context';
 import {
@@ -20,6 +37,7 @@ import { DashboardPageFrame } from '../../widgets/layout/DashboardPageFrame';
 
 const REFRESH_INTERVAL = 30_000;
 const RECENT_EVENT_LIMIT = 20;
+const CHART_EVENT_LIMIT = 100;
 const TIME_WINDOW_OPTIONS: Array<{ value: DashboardTimeWindow; label: string }> = [
   { value: 'all', label: 'All time' },
   { value: '24h', label: 'Last 24 hours' },
@@ -27,6 +45,20 @@ const TIME_WINDOW_OPTIONS: Array<{ value: DashboardTimeWindow; label: string }> 
   { value: '30d', label: 'Last 30 days' },
   { value: 'custom', label: 'Custom range' }
 ];
+
+const CHART_COLORS = {
+  ink: '#000000',
+  inkMuted: '#4e4e4e',
+  inkSoft: '#777169',
+  critical: '#9c4139',
+  warning: '#8a6539',
+  success: '#2f7f56',
+  canvasWarm: '#f5f2ef',
+  grid: '#e5e5e5',
+  surface: '#ffffff'
+};
+
+const TYPE_PALETTE = ['#000000', '#4e4e4e', '#777169', '#8a6539', '#5f7489', '#9c4139', '#2f7f56', '#a08872'];
 
 const countFormatter = new Intl.NumberFormat();
 const compactFormatter = new Intl.NumberFormat(undefined, {
@@ -73,13 +105,6 @@ function humanizeLabel(value: string) {
   return value.replace(/_/g, ' ');
 }
 
-function toBarWidth(count: number, max: number) {
-  if (count <= 0 || max <= 0) {
-    return '0%';
-  }
-  return `${Math.max((count / max) * 100, 6)}%`;
-}
-
 function toIsoFromLocalInput(value: string) {
   if (!value) {
     return undefined;
@@ -107,8 +132,23 @@ function describeRange(rangeStart: string | null, rangeEnd: string | null, windo
   return window;
 }
 
+function ChartTooltipContent({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color?: string }>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-panel border border-black/5 bg-white px-3 py-2 text-[0.82rem] shadow-outline">
+      {label && <p className="mb-1 text-ink-soft">{label}</p>}
+      {payload.map((entry, i) => (
+        <p key={i} className="text-ink">
+          <span className="font-medium">{entry.name}:</span> {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export function OverviewPage() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [draftWindow, setDraftWindow] = useState<DashboardTimeWindow>('all');
   const [draftStartAt, setDraftStartAt] = useState('');
   const [draftEndAt, setDraftEndAt] = useState('');
@@ -136,6 +176,20 @@ export function OverviewPage() {
     refetchIntervalInBackground: true
   });
 
+  const chartEventsQuery = useQuery({
+    queryKey: [
+      'dashboard-chart-events',
+      appliedFilters.window,
+      appliedFilters.startAt ?? '',
+      appliedFilters.endAt ?? '',
+      CHART_EVENT_LIMIT
+    ],
+    queryFn: async () => fetchRecentDashboardEvents(token!, appliedFilters, CHART_EVENT_LIMIT),
+    enabled: Boolean(token),
+    refetchInterval: REFRESH_INTERVAL,
+    refetchIntervalInBackground: true
+  });
+
   if (statsQuery.isLoading) {
     return <p className="muted">Loading dashboard metrics...</p>;
   }
@@ -146,9 +200,37 @@ export function OverviewPage() {
 
   const stats = statsQuery.data;
   const recentEvents = recentEventsQuery.data?.items ?? [];
-  const maxTypeCount = Math.max(...stats.events_by_type.map((item) => item.count), 1);
-  const maxHourCount = Math.max(...stats.events_by_hour.map((item) => item.count), 1);
+  const chartEvents = chartEventsQuery.data?.items ?? [];
   const activeRangeLabel = describeRange(stats.range_start, stats.range_end, stats.window);
+
+  // Prepare anomaly timeline data from chart events (sorted chronologically)
+  const anomalyTimeline = [...chartEvents]
+    .filter((e) => e.anomaly_score != null)
+    .sort((a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime())
+    .map((e) => ({
+      time: new Date(e.occurred_at).getTime(),
+      label: formatDateTimeShort(e.occurred_at),
+      score: e.anomaly_score ?? 0,
+      user: e.user_identifier,
+      isAnomaly: e.is_anomaly ?? false
+    }));
+
+  // Compute threshold from the stats avg + some heuristic, or use a fixed reference
+  const avgScore = stats.avg_anomaly_score ?? 0;
+  const thresholdLine = avgScore > 0 ? avgScore * 3 : 0.5;
+
+  // Events by hour with full 24-hour coverage
+  const hourData = Array.from({ length: 24 }, (_, i) => {
+    const match = stats.events_by_hour.find((h) => h.hour === i);
+    return { hour: formatHour(i), count: match?.count ?? 0, hourNum: i };
+  });
+
+  // Geo treemap data
+  const geoTreemap = stats.geo_distribution.map((g) => ({
+    name: g.geo_country.toUpperCase(),
+    size: g.count,
+    count: g.count
+  }));
 
   function applyFilters() {
     setAppliedFilters({
@@ -169,7 +251,7 @@ export function OverviewPage() {
     <DashboardPageFrame
       eyebrow="Behavior intelligence"
       title="Security behavior in one view."
-      subtitle="A near-white analyst surface for event volume, anomaly pressure, geography, user concentration, and recent behavior with all-time visibility by default."
+      subtitle="Event volume, anomaly pressure, geography, user concentration, and recent behavior with all-time visibility by default."
       chips={
         <div className="inline-actions">
           <Badge variant="info">{activeRangeLabel}</Badge>
@@ -177,6 +259,7 @@ export function OverviewPage() {
         </div>
       }
     >
+      {/* Scope control / filters */}
       <Card className="dashboard-filter-card">
         <div className="dashboard-filter-copy">
           <div className="panel-copy">
@@ -253,6 +336,7 @@ export function OverviewPage() {
         </div>
       </Card>
 
+      {/* KPI cards */}
       <div className="kpi-grid">
         <KpiCard
           label="Total events"
@@ -263,12 +347,14 @@ export function OverviewPage() {
           label="Total alerts"
           value={formatCount(stats.total_alerts)}
           meta="alerts created"
+          onClick={() => navigate('/alerts')}
         />
         <KpiCard
           label="Open alerts"
           value={formatCount(stats.open_alerts)}
           meta="investigation backlog"
           trend={stats.open_alerts > 0 ? 'up' : 'neutral'}
+          onClick={() => navigate('/alerts?state=open')}
         />
         <KpiCard
           label="Avg anomaly score"
@@ -283,7 +369,77 @@ export function OverviewPage() {
         />
       </div>
 
+      {/* Anomaly score timeline */}
+      {anomalyTimeline.length > 0 && (
+        <Card className="stack-md">
+          <div className="panel-header">
+            <div className="panel-copy">
+              <span className="panel-kicker">Signal</span>
+              <h2 className="panel-title">Anomaly score timeline</h2>
+              <p className="panel-summary">Reconstruction error over time. Points above the threshold line triggered alerts.</p>
+            </div>
+            <Badge variant={anomalyTimeline.some((p) => p.isAnomaly) ? 'critical' : 'neutral'}>
+              {anomalyTimeline.filter((p) => p.isAnomaly).length} anomalies
+            </Badge>
+          </div>
+
+          <div style={{ width: '100%', height: 280 }}>
+            <ResponsiveContainer>
+              <ScatterChart margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                <XAxis
+                  dataKey="time"
+                  type="number"
+                  domain={['dataMin', 'dataMax']}
+                  tickFormatter={(t: number) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  tick={{ fontSize: 11, fill: CHART_COLORS.inkSoft }}
+                  stroke={CHART_COLORS.grid}
+                />
+                <YAxis
+                  dataKey="score"
+                  tick={{ fontSize: 11, fill: CHART_COLORS.inkSoft }}
+                  stroke={CHART_COLORS.grid}
+                  tickFormatter={(v: number) => v.toFixed(2)}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="rounded-panel border border-black/5 bg-white px-3 py-2 text-[0.82rem] shadow-outline">
+                        <p className="text-ink-soft">{d.label}</p>
+                        <p className="font-medium text-ink">Score: {d.score.toFixed(4)}</p>
+                        <p className="text-ink-muted">User: {d.user}</p>
+                        {d.isAnomaly && <p className="text-critical font-medium">Anomaly detected</p>}
+                      </div>
+                    );
+                  }}
+                />
+                <ReferenceLine
+                  y={thresholdLine}
+                  stroke={CHART_COLORS.critical}
+                  strokeDasharray="6 4"
+                  strokeWidth={1.5}
+                  label={{ value: 'threshold', position: 'right', fontSize: 11, fill: CHART_COLORS.critical }}
+                />
+                <Scatter data={anomalyTimeline} fill={CHART_COLORS.ink}>
+                  {anomalyTimeline.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={entry.isAnomaly ? CHART_COLORS.critical : CHART_COLORS.inkSoft}
+                      opacity={entry.isAnomaly ? 1 : 0.5}
+                      r={entry.isAnomaly ? 5 : 3}
+                    />
+                  ))}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
       <div className="dashboard-grid">
+        {/* Events by Type - Horizontal Bar Chart */}
         <Card className="stack-md">
           <div className="panel-header">
             <div className="panel-copy">
@@ -297,25 +453,35 @@ export function OverviewPage() {
           {stats.events_by_type.length === 0 ? (
             <div className="empty-state">No events available for the selected window.</div>
           ) : (
-            <div className="dashboard-distribution">
-              {stats.events_by_type.map((item) => (
-                <div className="dashboard-distribution-row" key={item.event_type}>
-                  <div className="dashboard-distribution-meta">
-                    <span className="dashboard-distribution-label">{humanizeLabel(item.event_type)}</span>
-                    <span className="dashboard-distribution-value">{formatCount(item.count)}</span>
-                  </div>
-                  <div className="dashboard-distribution-track">
-                    <div
-                      className="dashboard-distribution-fill"
-                      style={{ width: toBarWidth(item.count, maxTypeCount) }}
-                    />
-                  </div>
-                </div>
-              ))}
+            <div style={{ width: '100%', height: Math.max(stats.events_by_type.length * 44, 120) }}>
+              <ResponsiveContainer>
+                <BarChart
+                  data={stats.events_by_type.map((item) => ({ name: humanizeLabel(item.event_type), count: item.count }))}
+                  layout="vertical"
+                  margin={{ top: 0, right: 16, bottom: 0, left: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: CHART_COLORS.inkSoft }} stroke={CHART_COLORS.grid} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={100}
+                    tick={{ fontSize: 12, fill: CHART_COLORS.ink }}
+                    stroke="transparent"
+                  />
+                  <Tooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="count" name="Events" radius={[0, 6, 6, 0]} barSize={20}>
+                    {stats.events_by_type.map((_, i) => (
+                      <Cell key={i} fill={TYPE_PALETTE[i % TYPE_PALETTE.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           )}
         </Card>
 
+        {/* Events by Hour - Area Chart */}
         <Card className="stack-md">
           <div className="panel-header">
             <div className="panel-copy">
@@ -326,24 +492,33 @@ export function OverviewPage() {
             <Badge variant="neutral">{activeRangeLabel}</Badge>
           </div>
 
-          <div className="dashboard-distribution">
-            {stats.events_by_hour.map((item) => (
-              <div className="dashboard-distribution-row" key={item.hour}>
-                <div className="dashboard-distribution-meta">
-                  <span className="dashboard-distribution-label">{formatHour(item.hour)}</span>
-                  <span className="dashboard-distribution-value">{formatCount(item.count)}</span>
-                </div>
-                <div className="dashboard-distribution-track">
-                  <div
-                    className="dashboard-distribution-fill dashboard-distribution-fill--subtle"
-                    style={{ width: toBarWidth(item.count, maxHourCount) }}
-                  />
-                </div>
-              </div>
-            ))}
+          <div style={{ width: '100%', height: 240 }}>
+            <ResponsiveContainer>
+              <AreaChart data={hourData} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                <defs>
+                  <linearGradient id="hourGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={CHART_COLORS.ink} stopOpacity={0.15} />
+                    <stop offset="95%" stopColor={CHART_COLORS.ink} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                <XAxis dataKey="hour" tick={{ fontSize: 10, fill: CHART_COLORS.inkSoft }} stroke={CHART_COLORS.grid} interval={2} />
+                <YAxis tick={{ fontSize: 11, fill: CHART_COLORS.inkSoft }} stroke={CHART_COLORS.grid} />
+                <Tooltip content={<ChartTooltipContent />} />
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  name="Events"
+                  stroke={CHART_COLORS.ink}
+                  strokeWidth={2}
+                  fill="url(#hourGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </Card>
 
+        {/* Top Users */}
         <Card className="stack-md">
           <div className="panel-header">
             <div className="panel-copy">
@@ -368,9 +543,23 @@ export function OverviewPage() {
                 </thead>
                 <tbody>
                   {stats.top_users.map((item) => (
-                    <tr className="interactive-row" key={item.user_identifier}>
+                    <tr
+                      className="interactive-row cursor-pointer"
+                      key={item.user_identifier}
+                      onClick={() => navigate(`/users/${encodeURIComponent(item.user_identifier)}`)}
+                    >
                       <td className="font-medium text-ink">{item.user_identifier}</td>
-                      <td>{formatCount(item.event_count)}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span>{formatCount(item.event_count)}</span>
+                          <div className="h-1.5 flex-1 rounded-pill bg-canvas-warm">
+                            <div
+                              className="h-full rounded-pill bg-ink"
+                              style={{ width: `${Math.min((item.event_count / Math.max(...stats.top_users.map((u) => u.event_count))) * 100, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
                       <td>
                         <Badge variant={item.anomaly_count > 0 ? 'warning' : 'neutral'}>
                           {formatCount(item.anomaly_count)}
@@ -385,6 +574,7 @@ export function OverviewPage() {
           )}
         </Card>
 
+        {/* Geo Distribution - Treemap */}
         <Card className="stack-md">
           <div className="panel-header">
             <div className="panel-copy">
@@ -397,18 +587,35 @@ export function OverviewPage() {
           {stats.geo_distribution.length === 0 ? (
             <div className="empty-state">No country data has been ingested yet.</div>
           ) : (
-            <div className="dashboard-stat-list">
-              {stats.geo_distribution.map((item) => (
-                <div className="dashboard-stat-pair" key={item.geo_country}>
-                  <span className="dashboard-stat-label">{item.geo_country.toUpperCase()}</span>
-                  <span className="dashboard-stat-value">{formatCount(item.count)}</span>
-                </div>
-              ))}
+            <div style={{ width: '100%', height: 220 }}>
+              <ResponsiveContainer>
+                <Treemap
+                  data={geoTreemap}
+                  dataKey="size"
+                  aspectRatio={4 / 3}
+                  stroke={CHART_COLORS.surface}
+                  content={({ x, y, width, height, name, count }: { x: number; y: number; width: number; height: number; name?: string; count?: number }) => {
+                    if (width < 30 || height < 30) return <rect x={x} y={y} width={width} height={height} fill={CHART_COLORS.inkMuted} stroke={CHART_COLORS.surface} rx={4} />;
+                    return (
+                      <g>
+                        <rect x={x} y={y} width={width} height={height} fill={CHART_COLORS.ink} stroke={CHART_COLORS.surface} rx={4} opacity={0.85} />
+                        <text x={x + width / 2} y={y + height / 2 - 6} textAnchor="middle" fill={CHART_COLORS.surface} fontSize={13} fontWeight={500} letterSpacing="0.08em">
+                          {name}
+                        </text>
+                        <text x={x + width / 2} y={y + height / 2 + 12} textAnchor="middle" fill="rgba(255,255,255,0.7)" fontSize={11}>
+                          {count?.toLocaleString()}
+                        </text>
+                      </g>
+                    );
+                  }}
+                />
+              </ResponsiveContainer>
             </div>
           )}
         </Card>
       </div>
 
+      {/* Recent Events table */}
       <Card className="stack-md">
         <div className="panel-header">
           <div className="panel-copy">
@@ -435,12 +642,17 @@ export function OverviewPage() {
                   <th>Type</th>
                   <th>Source</th>
                   <th>IP</th>
+                  <th>Score</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {recentEvents.map((event) => (
-                  <tr className="interactive-row" key={event.event_id}>
+                  <tr
+                    className="interactive-row cursor-pointer"
+                    key={event.event_id}
+                    onClick={() => navigate(`/users/${encodeURIComponent(event.user_identifier)}`)}
+                  >
                     <td>{formatDateTime(event.occurred_at)}</td>
                     <td className="font-medium text-ink">{event.user_identifier}</td>
                     <td>
@@ -450,6 +662,15 @@ export function OverviewPage() {
                     </td>
                     <td>{event.source}</td>
                     <td>{event.source_ip ?? 'n/a'}</td>
+                    <td className="tabular-nums">
+                      {event.anomaly_score != null ? (
+                        <span className={event.is_anomaly ? 'text-critical font-medium' : 'text-ink-muted'}>
+                          {event.anomaly_score.toFixed(4)}
+                        </span>
+                      ) : (
+                        <span className="text-ink-soft">--</span>
+                      )}
+                    </td>
                     <td>
                       <Badge
                         variant={

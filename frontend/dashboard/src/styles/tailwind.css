@@ -284,6 +284,21 @@
     letter-spacing: 0.14em;
   }
 
+  .topbar-nav {
+    @apply hidden items-center gap-1 lg:flex;
+  }
+
+  .topbar-nav-link {
+    @apply rounded-pill border border-transparent px-4 py-2 text-[0.88rem] text-ink-muted transition-colors duration-200;
+    letter-spacing: 0.02em;
+    background: none;
+    cursor: pointer;
+  }
+
+  .topbar-nav-link:hover {
+    @apply bg-canvas-warm text-ink;
+  }
+
   .topbar-copy {
     @apply hidden min-w-0 flex-1 items-center justify-between gap-4 lg:flex;
   }
