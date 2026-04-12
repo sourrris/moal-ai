@@ -143,37 +143,6 @@ class ModelMetadata(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 
-class ModelListItem(BaseModel):
-    model_name: str
-    model_version: str
-    threshold: float | None = None
-    updated_at: datetime | None = None
-    inference_count: int = 0
-    anomaly_rate: float = 0.0
-    active: bool = False
-    activate_capable: bool = True
-    source: Literal["registry", "inference_only"] = "registry"
-
-
-class ModelsListResponse(BaseModel):
-    active_model: ModelMetadata | None = None
-    items: list[ModelListItem] = Field(default_factory=list)
-
-
-class ModelTrainResponse(BaseModel):
-    run_id: UUID
-    status: Literal["running", "success", "failed"]
-    model_name: str
-    model_version: str | None = None
-    feature_dim: int | None = None
-    threshold: float | None = None
-    updated_at: datetime | None = None
-    sample_count: int = 0
-    auto_activated: bool = False
-    metrics: dict[str, Any] = Field(default_factory=dict)
-    error: str | None = None
-
-
 class ModelTrainingResult(BaseModel):
     model_name: str
     model_version: str

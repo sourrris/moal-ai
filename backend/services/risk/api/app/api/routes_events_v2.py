@@ -1,4 +1,5 @@
 import logging
+import json
 from datetime import UTC
 from uuid import UUID
 
@@ -66,7 +67,7 @@ async def _ingest_single(
                 :geo_country, :geo_city, :hour_of_day, :day_of_week,
                 :session_duration_seconds, :request_count, :failed_auth_count,
                 :bytes_transferred, :endpoint, :status_code, :device_fingerprint,
-                :metadata::jsonb, :features, :occurred_at
+                CAST(:metadata AS jsonb), :features, :occurred_at
             )
             ON CONFLICT (event_id) DO NOTHING
             RETURNING event_id
@@ -89,7 +90,7 @@ async def _ingest_single(
             "endpoint": event.endpoint,
             "status_code": event.status_code,
             "device_fingerprint": event.device_fingerprint,
-            "metadata": "{}",
+            "metadata": json.dumps(event.metadata or {}),
             "features": features,
             "occurred_at": event.occurred_at,
         },

@@ -24,10 +24,3 @@ async def check_db_health() -> bool:
     async with SessionLocal() as session:
         await session.execute(text("SELECT 1"))
     return True
-
-
-async def set_tenant_context(session: AsyncSession, tenant_id: str) -> None:
-    await session.execute(
-        text("SELECT set_config('app.current_tenant', :tenant_id, true)"),
-        {"tenant_id": tenant_id},
-    )

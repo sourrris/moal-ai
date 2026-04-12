@@ -25,11 +25,6 @@ class BaseServiceSettings(BaseSettings):
     )
     jwt_algorithm: str = "HS256"
     jwt_access_token_minutes: int = 60
-    jwt_refresh_secret_key: str = Field(
-        default="change-me-refresh-secret",
-        validation_alias=AliasChoices("JWT_REFRESH_SECRET", "jwt_refresh_secret_key"),
-    )
-    jwt_refresh_token_minutes: int = 10080
 
     ml_inference_url: str = "http://ml-inference:8000"
 
@@ -51,7 +46,6 @@ class BaseServiceSettings(BaseSettings):
             return True
         return normalized in {
             "change-me-in-prod",
-            "change-me-refresh-secret",
             "changeme",
             "default",
             "secret",
@@ -67,15 +61,13 @@ class BaseServiceSettings(BaseSettings):
             and (
                 self._is_placeholder_secret(self.jwt_secret_key)
                 or len(self.jwt_secret_key) < 32
-                or self._is_placeholder_secret(self.jwt_refresh_secret_key)
-                or len(self.jwt_refresh_secret_key) < 32
             )
         )
 
         if using_placeholder and not is_strict:
             print(
                 f"[MOAL WARNING] JWT secrets are using placeholder values in environment '{env_name}'. "
-                "Set JWT_SECRET and JWT_REFRESH_SECRET before deploying.",
+                "Set JWT_SECRET before deploying.",
                 file=sys.stderr,
             )
 
@@ -86,8 +78,6 @@ class BaseServiceSettings(BaseSettings):
         if self.jwt_algorithm.upper().startswith("HS"):
             if self._is_placeholder_secret(self.jwt_secret_key) or len(self.jwt_secret_key) < 32:
                 errors.append("JWT_SECRET must be set to a non-default value with length >= 32 for HS* algorithms")
-            if self._is_placeholder_secret(self.jwt_refresh_secret_key) or len(self.jwt_refresh_secret_key) < 32:
-                errors.append("JWT_REFRESH_SECRET must be set to a non-default value with length >= 32")
 
         if errors:
             raise ValueError(f"Secret validation failed for environment '{env_name}': " + "; ".join(errors))

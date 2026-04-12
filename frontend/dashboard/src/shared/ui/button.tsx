@@ -9,7 +9,8 @@ const buttonStyles = cva('ui-button', {
       primary: 'ui-button--primary',
       secondary: 'ui-button--secondary',
       ghost: 'ui-button--ghost',
-      danger: 'ui-button--danger'
+      danger: 'ui-button--danger',
+      warm: 'ui-button--warm'
     }
   },
   defaultVariants: {

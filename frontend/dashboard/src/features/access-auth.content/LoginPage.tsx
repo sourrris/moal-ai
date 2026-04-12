@@ -22,47 +22,77 @@ export function LoginPage() {
   });
 
   if (token) {
-    return <Navigate to="/overview" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (
     <div className="login-layout">
       <AmbientBackground variant="hero" />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[1.2fr_420px] lg:items-center">
-        <section className="stack-md">
-          <p className="inline-flex w-fit items-center rounded-pill border border-stroke bg-white px-3 py-1 text-sm font-semibold text-zinc-700">
-            moal-ai
+      <div className="auth-shell">
+        <section className="auth-hero">
+          <span className="page-eyebrow">Risk operations workspace</span>
+          <h1 className="display-hero">Spot quiet deviations before they become incidents.</h1>
+          <p className="auth-copy">
+            Monitor user behavior anomalies, read event pressure at a glance, and move from broad all-time visibility
+            into narrow investigation windows without changing screens.
           </p>
-          <h1 className="text-balance text-5xl font-extrabold tracking-tight text-ink sm:text-6xl">
-            User behavior anomaly detection.
-          </h1>
-          <p className="max-w-2xl text-lg text-ink-muted">
-            Sign in to monitor user behavior anomalies and investigate security alerts.
-          </p>
+
+          <div className="auth-rail">
+            <article className="auth-rail-card">
+              <span className="auth-rail-label">Default scope</span>
+              <strong className="auth-rail-value">All time</strong>
+              <span className="auth-rail-copy">Historical seed data and live demo activity surface together by default.</span>
+            </article>
+            <article className="auth-rail-card">
+              <span className="auth-rail-label">Signal</span>
+              <strong className="auth-rail-value">575+</strong>
+              <span className="auth-rail-copy">Behavior events already mapped for anomaly review in the local stack.</span>
+            </article>
+            <article className="auth-rail-card">
+              <span className="auth-rail-label">Flow</span>
+              <strong className="auth-rail-value">30s</strong>
+              <span className="auth-rail-copy">Live refresh keeps recent behavior, alert counts, and top users current.</span>
+            </article>
+          </div>
         </section>
 
         <Card className="login-card">
-          <h2 className="text-2xl font-bold tracking-tight">Sign in</h2>
-          <p className="muted">Use your account to access the dashboard.</p>
+          <div className="auth-card-intro">
+            <span className="page-eyebrow">Sign in</span>
+            <h2 className="display-card">Access the behavior board.</h2>
+            <p className="muted">Use your analyst account to enter the dashboard.</p>
+          </div>
 
-          <label htmlFor="username">Username</label>
-          <Input id="username" value={username} onChange={(event) => setUsername(event.target.value)} />
+          <div className="auth-form">
+            <div className="field-group">
+              <label htmlFor="username">Username</label>
+              <Input id="username" value={username} onChange={(event) => setUsername(event.target.value)} />
+            </div>
 
-          <label htmlFor="password">Password</label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+            <div className="field-group">
+              <label htmlFor="password">Password</label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
 
-          <Button variant="primary" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? 'Signing in...' : 'Sign in'}
-          </Button>
+            <Button variant="warm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Signing in...' : 'Enter dashboard'}
+            </Button>
+          </div>
 
-          <p className="muted">
-            New here? <Link to="/register">Create an account</Link>
+          <p className="auth-footer">
+            Local default credentials: <span className="mono">admin / admin123</span>
+          </p>
+          <p className="auth-footer">
+            New here?{' '}
+            <Link className="auth-link" to="/register">
+              Create an account
+            </Link>
           </p>
 
           {mutation.isError && <p className="inline-error">Authentication failed. Check credentials.</p>}

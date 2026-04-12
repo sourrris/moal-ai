@@ -12,9 +12,9 @@ export type KpiCardProps = {
 };
 
 const trendClassMap: Record<KpiCardTrend, string> = {
-  up: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  down: 'border-red-200 bg-red-50 text-red-700',
-  neutral: 'border-zinc-200 bg-zinc-100 text-zinc-700'
+  up: 'kpi-card-meta--up',
+  down: 'kpi-card-meta--down',
+  neutral: 'kpi-card-meta--neutral'
 };
 
 export function KpiCard({ label, value, meta, trend = 'neutral', onClick, className }: KpiCardProps) {

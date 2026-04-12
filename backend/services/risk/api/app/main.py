@@ -8,6 +8,7 @@ from moal_common.schemas import HealthResponse
 from app.api import (
     routes_alerts_v2,
     routes_auth,
+    routes_dashboard,
     routes_events_v2,
     routes_models_v2,
     routes_overview,
@@ -35,6 +36,7 @@ app.add_middleware(
 )
 app.include_router(routes_auth.router)
 app.include_router(routes_overview.router)
+app.include_router(routes_dashboard.router)
 app.include_router(routes_events_v2.router)
 app.include_router(routes_alerts_v2.router)
 app.include_router(routes_models_v2.router)

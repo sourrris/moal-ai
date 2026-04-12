@@ -19,52 +19,79 @@ export function RegisterPage() {
     mutationFn: async () => register(username, password),
     onSuccess: (result) => {
       setSession(result.access_token, username);
-      navigate('/overview', { replace: true });
+      navigate('/', { replace: true });
     }
   });
 
   if (token) {
-    return <Navigate to="/overview" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (
     <div className="login-layout">
       <AmbientBackground variant="hero" />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[1.2fr_420px] lg:items-center">
-        <section className="stack-md">
-          <p className="inline-flex w-fit items-center rounded-pill border border-stroke bg-white px-3 py-1 text-sm font-semibold text-zinc-700">
-            moal-ai
+      <div className="auth-shell">
+        <section className="auth-hero">
+          <span className="page-eyebrow">Account setup</span>
+          <h1 className="display-hero">Open a calmer view into user behavior risk.</h1>
+          <p className="auth-copy">
+            Create an account to move through broad anomaly trends, user concentration, and recent event context with a
+            single all-time dashboard that can tighten to exact date and time ranges when needed.
           </p>
-          <h1 className="text-balance text-5xl font-extrabold tracking-tight text-ink sm:text-6xl">
-            Create your account.
-          </h1>
-          <p className="max-w-2xl text-lg text-ink-muted">
-            Get started monitoring user behavior anomalies and investigating security alerts.
-          </p>
+
+          <div className="auth-rail">
+            <article className="auth-rail-card">
+              <span className="auth-rail-label">Overview</span>
+              <strong className="auth-rail-value">Single screen</strong>
+              <span className="auth-rail-copy">Volume, alert pressure, geography, and recent activity live together.</span>
+            </article>
+            <article className="auth-rail-card">
+              <span className="auth-rail-label">Controls</span>
+              <strong className="auth-rail-value">Custom windows</strong>
+              <span className="auth-rail-copy">Analysts can narrow the board from all-time into exact investigation ranges.</span>
+            </article>
+            <article className="auth-rail-card">
+              <span className="auth-rail-label">Refresh</span>
+              <strong className="auth-rail-value">Live</strong>
+              <span className="auth-rail-copy">Recent events continue to stream while the rest of the board stays readable.</span>
+            </article>
+          </div>
         </section>
 
         <Card className="login-card">
-          <h2 className="text-2xl font-bold tracking-tight">Create account</h2>
-          <p className="muted">Sign up to access the dashboard.</p>
+          <div className="auth-card-intro">
+            <span className="page-eyebrow">Register</span>
+            <h2 className="display-card">Create an analyst account.</h2>
+            <p className="muted">Sign up to enter the dashboard and start reviewing behavior patterns.</p>
+          </div>
 
-          <label htmlFor="register-username">Username</label>
-          <Input id="register-username" value={username} onChange={(event) => setUsername(event.target.value)} />
+          <div className="auth-form">
+            <div className="field-group">
+              <label htmlFor="register-username">Username</label>
+              <Input id="register-username" value={username} onChange={(event) => setUsername(event.target.value)} />
+            </div>
 
-          <label htmlFor="register-password">Password</label>
-          <Input
-            id="register-password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
+            <div className="field-group">
+              <label htmlFor="register-password">Password</label>
+              <Input
+                id="register-password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
 
-          <Button variant="primary" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? 'Creating account...' : 'Create account'}
-          </Button>
+            <Button variant="warm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Creating account...' : 'Create account'}
+            </Button>
+          </div>
 
-          <p className="muted">
-            Already have access? <Link to="/login">Sign in</Link>
+          <p className="auth-footer">
+            Already have access?{' '}
+            <Link className="auth-link" to="/login">
+              Sign in
+            </Link>
           </p>
 
           {mutation.isError && <p className="inline-error">{(mutation.error as Error).message}</p>}
